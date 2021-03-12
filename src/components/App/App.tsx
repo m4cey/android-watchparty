@@ -1029,33 +1029,11 @@ export default class App extends React.Component<AppProps, AppState> {
         <Input
           inverted
           fluid
-          label= {'(' + this.state.participants.length +')  My name is:'}
-          //{'My name is:'}
+          label= {'('+this.state.participants.length+')  My name is:'}
           value={this.state.myName}
           onChange={this.updateName}
           style={{ visibility: displayRightContent ? '' : 'hidden' }}
         />
-        {/*
-          <Menu
-            inverted
-            widths={1}
-            style={{
-              marginTop: '4px',
-              marginBottom: '4px',
-              visibility: displayRightContent ? '' : 'hidden',
-            }}
-          >
-            <Menu.Item
-              name="chat"
-              active={true}
-              //as="a"
-            >
-              <Icon name="conversation" />
-              Chat
-              ({this.state.participants.length})
-            </Menu.Item>
-          </Menu>
-          */}
         <Chat
           chat={this.state.chat}
           nameMap={this.state.nameMap}
@@ -1143,6 +1121,24 @@ export default class App extends React.Component<AppProps, AppState> {
                     height: '100%',
                   }}
                 >
+                    {false && this.state.currentMedia && (
+                      <Popup
+                        content="Upload a .srt subtitle file for this video"
+                        trigger={
+                          <Button style={{width: '0',}}
+                            fluid
+                            color="violet"
+                            //className="toolButton"
+                            icon
+                            labelPosition="left"
+                            onClick={this.setSubtitle}
+                            disabled={!this.haveLock()}
+                          >
+                            <Icon name="closed captioning" />
+                          </Button>
+                        }
+                      />
+                    )}
                   <ComboBox
                     setMedia={this.setMedia}
                     currentMedia={this.state.currentMedia}
@@ -1180,24 +1176,6 @@ export default class App extends React.Component<AppProps, AppState> {
                         mediaPath={this.state.settings.mediaPath}
                         launchMultiSelect={this.launchMultiSelect}
                         disabled={!this.haveLock()}
-                      />
-                      )}
-                    {this.state.currentMedia && (
-                      <Popup
-                        content="Upload a .srt subtitle file for this video"
-                        trigger={
-                          <Button style={{width: 'auto',}}
-                            fluid
-                            color="violet"
-                            //className="toolButton"
-                            icon
-                            labelPosition="left"
-                            onClick={this.setSubtitle}
-                            disabled={!this.haveLock()}
-                          >
-                            <Icon name="closed captioning" />
-                          </Button>
-                        }
                       />
                     )}
                   </div>

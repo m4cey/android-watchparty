@@ -37,19 +37,8 @@ export class ComboBox extends React.Component<ComboBoxProps> {
       if (!this.debounced) {
         this.debounced = debounce(async () => {
           this.setState({ loading: true });
-          const query: string = this.state.inputMedia || '';
           let timestamp = Number(new Date());
           let results: JSX.Element[] | undefined = undefined;
-          /* if (query !== '') { */
-          /*   const data = await getYouTubeResults(query); */
-          /*   results = data.map((result) => ( */
-          /*     <YouTubeSearchResult */
-          /*       key={result.url} */
-          /*       {...result} */
-          /*       setMedia={this.setMedia} */
-          /*     /> */
-          /*   )); */
-          /* } */
           if (timestamp > this.state.lastResultTimestamp) {
             this.setState({
               loading: false,

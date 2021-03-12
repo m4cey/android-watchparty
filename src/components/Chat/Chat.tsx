@@ -1,11 +1,8 @@
 import React from 'react';
-//import { Button, Comment, Icon, Input } from 'semantic-ui-react';
-import { View, Button, Thumbnail, List, ListItem, Left, Right, Body, Icon, Input } from 'native-base';
+import { Button, Comment, Icon, Input } from 'semantic-ui-react';
 
 import {
   formatTimestamp,
-  getColorForStringHex,
-  getDefaultPicture,
 } from '../../utils';
 import { Separator } from '../App/App';
 
@@ -23,7 +20,7 @@ interface ChatProps {
 
 export class Chat extends React.Component<ChatProps> {
   public state = { chatMsg: '', isNearBottom: true };
-  messagesRef = React.createRef<View>();
+  messagesRef = React.createRef<HTMLDivElement>();
 
   componentDidMount() {
     this.scrollToBottom();
@@ -84,12 +81,12 @@ export class Chat extends React.Component<ChatProps> {
   formatMessage = (cmd: string, msg: string): React.ReactNode | string => {
     if (cmd === 'host') {
       return (
-        <View>
+        <React.Fragment>
           {`changed the video to `}
-          <View style={{ textTransform: 'initial' }}>
+          <span style={{ textTransform: 'initial' }}>
             {this.props.getMediaDisplayName(msg)}
-          </View>
-        </View>
+          </span>
+        </React.Fragment>
       );
     } else if (cmd === 'seek') {
       return `jumped to ${formatTimestamp(msg)}`;
@@ -107,7 +104,7 @@ export class Chat extends React.Component<ChatProps> {
 
   render() {
     return (
-      <View
+      <div
         className={this.props.className}
         style={{
           display: this.props.hide ? 'none' : 'flex',
@@ -119,12 +116,12 @@ export class Chat extends React.Component<ChatProps> {
           padding: '8px',
         }}
       >
-        <View
-          //className="chatContainer"
+        <div
+          className="chatContainer"
           ref={this.messagesRef}
-          style={{ position: 'relative', flexGrow: 1, overFlow: 'auto'}}
+          style={{ position: 'relative' }}
         >
-          <List>
+          <Comment.Group>
             {this.props.chat.map((msg) => (
               <ChatMessage
                 key={msg.timestamp + msg.id}
@@ -134,9 +131,24 @@ export class Chat extends React.Component<ChatProps> {
                 formatMessage={this.formatMessage}
               />
             ))}
-          </List>
-        </View>
-        {/* <Separator /> */}
+            {/* <div ref={this.messagesEndRef} /> */}
+          </Comment.Group>
+          {!this.state.isNearBottom && (
+            <Button
+              size="tiny"
+              onClick={this.scrollToBottom}
+              style={{
+                position: 'sticky',
+                bottom: 0,
+                display: 'block',
+                margin: '0 auto',
+              }}
+            >
+              Jump to bottom
+            </Button>
+          )}
+        </div>
+        <Separator />
         <Input
           inverted
           fluid
@@ -155,12 +167,12 @@ export class Chat extends React.Component<ChatProps> {
           <input />
           <Icon onClick={this.sendChatMsg} name="send" inverted circular link />
         </Input>
-      </View>
+      </div>
     );
   }
 }
 
-export const ChatMessage = ({
+const ChatMessage = ({
   message,
   nameMap,
   pictureMap,
@@ -173,30 +185,25 @@ export const ChatMessage = ({
 }) => {
   const { id, timestamp, cmd, msg, system } = message;
   return (
-    <ListItem comment>
-      <Left>
-        {id ? (
-          <Thumbnail square small
-            source={{uri:
-              pictureMap[id] ||
-              getDefaultPicture(nameMap[id], getColorForStringHex(id))
-            }}/> ) : null}
-      </Left>
-      <Body>
-        <Text note>
+    <Comment>
+      {id ? (
+        <Comment.Avatar
+          src={pictureMap[id]}
+        />
+      ) : null}
+      <Comment.Content>
+        <Comment.Author as="a" className="light">
           {Boolean(system) && 'System'}
           {nameMap[id] || id}
-        </Text>
-        <Text style={{fontSize: 10, textTransform:'uppercase',letterSpacing:1}}>
+        </Comment.Author>
+        <Comment.Metadata className="dark">
+          <div>{new Date(timestamp).toLocaleTimeString()}</div>
+        </Comment.Metadata>
+        <Comment.Text className="light system">
           {cmd && formatMessage(cmd, msg)}
-        </Text>
-        <Text style={{}}>
-          {!cmd && msg}
-        </Text>
-      </Body>
-      <Right>
-        <Text note>{new Date(timestamp).toLocaleTimeString()}</Text>
-      </Right>
-    </ListItem>
+        </Comment.Text>
+        <Comment.Text className="light">{!cmd && msg}</Comment.Text>
+      </Comment.Content>
+    </Comment>
   );
 };

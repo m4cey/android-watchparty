@@ -171,10 +171,6 @@ export const getMediaPathForList = (list: string) => {
   return list + '/';
 };
 
-export const getDefaultPicture = (name: string, background = 'a0a0a0') => {
-  return `https://placedog.net/256/256?id=${name}`
-};
-
 export const isMobile = () => {
   return window.screen.width <= 600;
 };
