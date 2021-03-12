@@ -1,8 +1,6 @@
 import React from 'react';
-import { Button, Comment, Icon, Input } from 'semantic-ui-react';
-import 'emoji-mart/css/emoji-mart.css';
-import { EmojiData, Picker } from 'emoji-mart';
-import onClickOutside from 'react-onclickoutside';
+//import { Button, Comment, Icon, Input } from 'semantic-ui-react';
+import { View, Button, Thumbnail, List, ListItem, Left, Right, Body, Icon, Input } from 'native-base';
 
 import {
   formatTimestamp,
@@ -24,8 +22,8 @@ interface ChatProps {
 }
 
 export class Chat extends React.Component<ChatProps> {
-  public state = { chatMsg: '', isNearBottom: true, isPickerOpen: false };
-  messagesRef = React.createRef<HTMLDivElement>();
+  public state = { chatMsg: '', isNearBottom: true };
+  messagesRef = React.createRef<View>();
 
   componentDidMount() {
     this.scrollToBottom();
@@ -86,12 +84,12 @@ export class Chat extends React.Component<ChatProps> {
   formatMessage = (cmd: string, msg: string): React.ReactNode | string => {
     if (cmd === 'host') {
       return (
-        <React.Fragment>
+        <View>
           {`changed the video to `}
-          <span style={{ textTransform: 'initial' }}>
+          <View style={{ textTransform: 'initial' }}>
             {this.props.getMediaDisplayName(msg)}
-          </span>
-        </React.Fragment>
+          </View>
+        </View>
       );
     } else if (cmd === 'seek') {
       return `jumped to ${formatTimestamp(msg)}`;
@@ -103,33 +101,13 @@ export class Chat extends React.Component<ChatProps> {
       return `locked the room`;
     } else if (cmd === 'unlock') {
       return 'unlocked the room';
-    } else if (cmd === 'vBrowserTimeout') {
-      return (
-        <React.Fragment>
-          The VBrowser shut down automatically.
-          <br />
-          Subscribe for sessions up to 12 hours.
-        </React.Fragment>
-      );
-    } else if (cmd === 'vBrowserAlmostTimeout') {
-      return (
-        <React.Fragment>
-          The VBrowser will shut down soon.
-          <br />
-          Subscribe for sessions up to 12 hours.
-        </React.Fragment>
-      );
     }
     return cmd;
   };
 
-  addEmoji = (emoji: EmojiData) => {
-    this.setState({ chatMsg: this.state.chatMsg + (emoji as any).native });
-  };
-
   render() {
     return (
-      <div
+      <View
         className={this.props.className}
         style={{
           display: this.props.hide ? 'none' : 'flex',
@@ -141,12 +119,12 @@ export class Chat extends React.Component<ChatProps> {
           padding: '8px',
         }}
       >
-        <div
-          className="chatContainer"
+        <View
+          //className="chatContainer"
           ref={this.messagesRef}
-          style={{ position: 'relative' }}
+          style={{ position: 'relative', flexGrow: 1, overFlow: 'auto'}}
         >
-          <Comment.Group>
+          <List>
             {this.props.chat.map((msg) => (
               <ChatMessage
                 key={msg.timestamp + msg.id}
@@ -156,30 +134,9 @@ export class Chat extends React.Component<ChatProps> {
                 formatMessage={this.formatMessage}
               />
             ))}
-            {/* <div ref={this.messagesEndRef} /> */}
-          </Comment.Group>
-          {!this.state.isNearBottom && (
-            <Button
-              size="tiny"
-              onClick={this.scrollToBottom}
-              style={{
-                position: 'sticky',
-                bottom: 0,
-                display: 'block',
-                margin: '0 auto',
-              }}
-            >
-              Jump to bottom
-            </Button>
-          )}
-        </div>
-        <Separator />
-        {this.state.isPickerOpen && (
-          <PickerMenu
-            addEmoji={this.addEmoji}
-            closeMenu={() => this.setState({ isPickerOpen: false })}
-          />
-        )}
+          </List>
+        </View>
+        {/* <Separator /> */}
         <Input
           inverted
           fluid
@@ -196,28 +153,14 @@ export class Chat extends React.Component<ChatProps> {
           }
         >
           <input />
-          <Icon
-            // style={{ right: '40px' }}
-            onClick={() => this.setState({ isPickerOpen: true })}
-            name={'' as any}
-            inverted
-            circular
-            link
-            disabled={this.props.isChatDisabled}
-            style={{ opacity: 1 }}
-          >
-            <span role="img" aria-label="Emoji">
-              😀
-            </span>
-          </Icon>
-          {/* <Icon onClick={this.sendChatMsg} name="send" inverted circular link /> */}
+          <Icon onClick={this.sendChatMsg} name="send" inverted circular link />
         </Input>
-      </div>
+      </View>
     );
   }
 }
 
-const ChatMessage = ({
+export const ChatMessage = ({
   message,
   nameMap,
   pictureMap,
@@ -230,53 +173,30 @@ const ChatMessage = ({
 }) => {
   const { id, timestamp, cmd, msg, system } = message;
   return (
-    <Comment>
-      {id ? (
-        <Comment.Avatar
-          src={
-            pictureMap[id] ||
-            getDefaultPicture(nameMap[id], getColorForStringHex(id))
-          }
-        />
-      ) : null}
-      <Comment.Content>
-        <Comment.Author as="a" className="light">
+    <ListItem comment>
+      <Left>
+        {id ? (
+          <Thumbnail square small
+            source={{uri:
+              pictureMap[id] ||
+              getDefaultPicture(nameMap[id], getColorForStringHex(id))
+            }}/> ) : null}
+      </Left>
+      <Body>
+        <Text note>
           {Boolean(system) && 'System'}
           {nameMap[id] || id}
-        </Comment.Author>
-        <Comment.Metadata className="dark">
-          <div>{new Date(timestamp).toLocaleTimeString()}</div>
-        </Comment.Metadata>
-        <Comment.Text className="light system">
+        </Text>
+        <Text style={{fontSize: 10, textTransform:'uppercase',letterSpacing:1}}>
           {cmd && formatMessage(cmd, msg)}
-        </Comment.Text>
-        <Comment.Text className="light">{!cmd && msg}</Comment.Text>
-      </Comment.Content>
-    </Comment>
+        </Text>
+        <Text style={{}}>
+          {!cmd && msg}
+        </Text>
+      </Body>
+      <Right>
+        <Text note>{new Date(timestamp).toLocaleTimeString()}</Text>
+      </Right>
+    </ListItem>
   );
 };
-
-class PickerMenuInner extends React.Component<{
-  addEmoji: (emoji: EmojiData) => void;
-  closeMenu: Function;
-}> {
-  handleClickOutside = () => {
-    this.props.closeMenu();
-  };
-  render() {
-    return (
-      <div style={{ position: 'absolute', bottom: '60px' }}>
-        <Picker
-          set="google"
-          sheetSize={64}
-          theme="dark"
-          showPreview={false}
-          showSkinTones={false}
-          onSelect={this.props.addEmoji}
-        />
-      </div>
-    );
-  }
-}
-
-const PickerMenu = onClickOutside(PickerMenuInner);

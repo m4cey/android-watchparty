@@ -6,16 +6,14 @@ import magnet from 'magnet-uri';
 import React from 'react';
 import {
   Button,
-  Dimmer,
   DropdownProps,
   Grid,
   Icon,
   Input,
-  Loader,
+  //Loader,
   Message,
   Popup,
   Progress,
-  Menu,
   Modal,
 } from 'semantic-ui-react';
 import io from 'socket.io-client';
@@ -23,7 +21,7 @@ import VTTConverter from 'srt-webvtt';
 import {
   formatSpeed,
   getMediaType,
-  iceServers,
+  //iceServers,
   isMobile,
   serverPath,
   testAutoplay,
@@ -31,7 +29,6 @@ import {
   getAndSaveClientId,
 } from '../../utils';
 import { Chat } from '../Chat';
-import { VideoChat } from '../VideoChat';
 import { getCurrentSettings } from '../Settings';
 import { MultiStreamModal } from '../Modal/MultiStreamModal';
 import { ComboBox } from '../ComboBox/ComboBox';
@@ -72,9 +69,6 @@ interface AppState {
   fullScreen: boolean;
   controlsTimestamp: number;
   watchOptions: SearchResult[];
-  isScreenSharing: boolean;
-  isScreenSharingFile: boolean;
-  isVBrowser: boolean;
   isYouTubeReady: boolean;
   isAutoPlayable: boolean;
   downloaded: number;
@@ -85,14 +79,8 @@ interface AppState {
   error: string;
   isErrorAuth: boolean;
   settings: Settings;
-  vBrowserResolution: string;
-  isVBrowserLarge: boolean;
   nonPlayableMedia: boolean;
   currentTab: string;
-  isSubscriber: boolean;
-  isCustomer: boolean;
-  isSubscribeModalOpen: boolean;
-  isVBrowserModalOpen: boolean;
   roomLock: string;
   controller?: string;
   savedPasswords: StringDict;
@@ -122,9 +110,6 @@ export default class App extends React.Component<AppProps, AppState> {
     fullScreen: false,
     controlsTimestamp: 0,
     watchOptions: [],
-    isScreenSharing: false,
-    isScreenSharingFile: false,
-    isVBrowser: false,
     isYouTubeReady: false,
     isAutoPlayable: true,
     downloaded: 0,
@@ -135,16 +120,10 @@ export default class App extends React.Component<AppProps, AppState> {
     error: '',
     isErrorAuth: false,
     settings: {},
-    vBrowserResolution: '1280x720@30',
-    isVBrowserLarge: false,
     nonPlayableMedia: false,
     currentTab:
       (querystring.parse(window.location.search.substring(1)).tab as string) ||
       'chat',
-    isSubscriber: true,
-    isCustomer: false,
-    isSubscribeModalOpen: false,
-    isVBrowserModalOpen: false,
     roomLock: '',
     controller: '',
     roomId: '',
@@ -213,15 +192,7 @@ export default class App extends React.Component<AppProps, AppState> {
         this.updatePicture(user.photoURL + '?height=128&width=128');
       }
       this.updateUid(user);
-      const token = await user.getIdToken();
-      const response = await window.fetch(
-        serverPath + `/metadata?uid=${user.uid}&token=${token}`
-      );
-      const data = await response.json();
-      this.setState({
-        isSubscriber: data.isSubscriber,
-        isCustomer: data.isCustomer,
-      });
+      //const token = await user.getIdToken();
     }
   };
 
@@ -331,9 +302,7 @@ export default class App extends React.Component<AppProps, AppState> {
     this.socket = socket;
     socket.on('connect', async () => {
       this.setState({ state: 'connected' });
-      // Load username from localstorage
-      let userName = window.localStorage.getItem('watchparty-username');
-      this.updateName(null, { value: userName || 'gae' });
+      this.updateName(null, { value: 'imgae' });
       this.loadSignInData();
     });
     socket.on('error', (err: any) => {
@@ -384,20 +353,6 @@ export default class App extends React.Component<AppProps, AppState> {
     });
     socket.on('REC:host', async (data: HostState) => {
       let currentMedia = data.video || '';
-      if (this.isScreenShare() && !currentMedia.startsWith('screenshare://')) {
-        this.stopScreenShare();
-      }
-      if (this.isFileShare() && !currentMedia.startsWith('fileshare://')) {
-        this.stopScreenShare();
-      }
-      if (this.isScreenShare() && currentMedia.startsWith('screenshare://')) {
-        // Ignore, it's probably a reconnection
-        return;
-      }
-      if (this.isFileShare() && currentMedia.startsWith('fileshare://')) {
-        // Ignore, it's probably a reconnection
-        return;
-      }
       this.setState(
         {
           currentMedia,
@@ -407,23 +362,9 @@ export default class App extends React.Component<AppProps, AppState> {
             : '',
           loading: Boolean(data.video),
           nonPlayableMedia: false,
-          isVBrowserLarge: data.isVBrowserLarge,
-          vBrowserResolution: data.isVBrowserLarge
-            ? '1920x1080@30'
-            : '1280x720@30',
           controller: data.controller,
         },
         () => {
-          if (
-            this.state.isScreenSharingFile ||
-            (this.isVBrowser() && this.getVBrowserHost())
-          ) {
-            console.log(
-              'skipping REC:host video since fileshare is using leftVideo or this is a vbrowser'
-            );
-            this.setLoadingFalse();
-            return;
-          }
           // Stop all players
           const leftVideo = document.getElementById(
             'leftVideo'
@@ -434,10 +375,6 @@ export default class App extends React.Component<AppProps, AppState> {
           if (this.isYouTube() && !this.watchPartyYTPlayer) {
             console.log(
               'YT player not ready, onReady callback will retry when it is'
-            );
-          } else if (this.isVBrowser()) {
-            console.log(
-              'not playing video as this is a vbrowser:// placeholder'
             );
           } else {
             // Start this video
@@ -509,12 +446,7 @@ export default class App extends React.Component<AppProps, AppState> {
       this.setState({ roomLock: data });
     });
     socket.on('roster', (data: User[]) => {
-      this.setState(
-        { participants: data, rosterUpdateTS: Number(new Date()) },
-        () => {
-          this.updateScreenShare();
-        }
-      );
+      this.setState({ participants: data, rosterUpdateTS: Number(new Date()) });
     });
     socket.on('chatinit', (data: any) => {
       this.setState({ chat: data, scrollTimestamp: Number(new Date()) });
@@ -544,145 +476,6 @@ export default class App extends React.Component<AppProps, AppState> {
         this.socket.emit('CMD:ts', this.getCurrentTime());
       }
     }, 1000);
-  };
-
-  setupFileShare = async () => {
-    const files = await openFileSelector();
-    if (!files) {
-      return;
-    }
-    const file = files[0];
-    const leftVideo = document.getElementById('leftVideo') as HTMLMediaElement;
-    leftVideo.srcObject = null;
-    leftVideo.src = URL.createObjectURL(file);
-    leftVideo.play();
-    //@ts-ignore
-    const stream = leftVideo.captureStream();
-    // Can render video to a canvas to resize it, reduce size
-    stream.onaddtrack = () => {
-      console.log(stream, stream.getVideoTracks(), stream.getAudioTracks());
-      if (
-        !this.screenShareStream &&
-        stream.getVideoTracks().length &&
-        stream.getAudioTracks().length
-      ) {
-        stream.getVideoTracks()[0].onended = this.stopScreenShare;
-        this.screenShareStream = stream;
-        this.socket.emit('CMD:joinScreenShare', { file: true });
-        this.setState({ isScreenSharing: true, isScreenSharingFile: true });
-        stream.onaddtrack = undefined;
-      }
-    };
-  };
-
-  setupScreenShare = async () => {
-    //@ts-ignore
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { cursor: 'never', height: 720, logicalSurface: true },
-      audio: true,
-    });
-    stream.getVideoTracks()[0].onended = this.stopScreenShare;
-    this.screenShareStream = stream;
-    this.socket.emit('CMD:joinScreenShare');
-    this.setState({ isScreenSharing: true });
-  };
-
-  stopScreenShare = async () => {
-    this.screenShareStream &&
-      this.screenShareStream.getTracks().forEach((track) => {
-        track.stop();
-      });
-    this.screenShareStream = undefined;
-    if (this.screenSharePC) {
-      this.screenSharePC.close();
-      this.screenSharePC = undefined;
-    }
-    Object.values(this.screenHostPC).forEach((pc) => {
-      pc.close();
-    });
-    this.screenHostPC = {};
-    if (this.state.isScreenSharing) {
-      this.socket.emit('CMD:leaveScreenShare');
-    }
-    this.setState({ isScreenSharing: false, isScreenSharingFile: false });
-  };
-
-  updateScreenShare = async () => {
-    if (!this.isScreenShare() && !this.isFileShare()) {
-      return;
-    }
-    // TODO teardown for those who leave
-    const sharer = this.state.participants.find((p) => p.isScreenShare);
-    if (sharer && sharer.id === this.socket.id) {
-      // We're the sharer, create a connection to each other member
-      this.state.participants.forEach((user) => {
-        const id = user.id;
-        if (id === this.socket.id && this.state.isScreenSharingFile) {
-          // Don't set up a connection to ourselves if sharing file
-          return;
-        }
-        if (!this.screenHostPC[id]) {
-          // Set up the RTCPeerConnection for sharing media to each member
-          const pc = new RTCPeerConnection({ iceServers: iceServers() });
-          this.screenHostPC[id] = pc;
-          //@ts-ignore
-          pc.addStream(this.screenShareStream);
-          pc.onicecandidate = (event) => {
-            // We generated an ICE candidate, send it to peer
-            if (event.candidate) {
-              this.sendSignalSS(id, { ice: event.candidate }, true);
-            }
-          };
-          pc.onnegotiationneeded = async () => {
-            // Start connection for peer's video
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            this.sendSignalSS(id, { sdp: pc.localDescription }, true);
-          };
-        }
-      });
-    }
-    // We're a watcher, establish connection to sharer
-    // If screensharing, sharer also does this
-    // If filesharing, sharer does not do this since we use leftVideo
-    if (sharer && !this.screenSharePC && !this.state.isScreenSharingFile) {
-      const pc = new RTCPeerConnection({ iceServers: iceServers() });
-      this.screenSharePC = pc;
-      pc.onicecandidate = (event) => {
-        // We generated an ICE candidate, send it to peer
-        if (event.candidate) {
-          this.sendSignalSS(sharer.id, { ice: event.candidate });
-        }
-      };
-      //@ts-ignore
-      pc.onaddstream = (event: any) => {
-        console.log('stream from webrtc peer');
-        // Mount the stream from peer
-        const stream = event.stream;
-        // console.log(stream);
-        const leftVideo = document.getElementById(
-          'leftVideo'
-        ) as HTMLMediaElement;
-        if (leftVideo) {
-          leftVideo.src = '';
-          leftVideo.srcObject = stream;
-          this.doPlay();
-        }
-      };
-    }
-  };
-
-  startVBrowser = async (rcToken: string, options: { size: string }) => {
-    // user.uid is the public user identifier
-    // user.getIdToken() is the secret access token we can send to the server to prove identity
-    const user = this.props.user;
-    const uid = user?.uid;
-    const token = await user?.getIdToken();
-    this.socket.emit('CMD:startVBrowser', { options, uid, token, rcToken });
-  };
-
-  stopVBrowser = async () => {
-    this.socket.emit('CMD:stopVBrowser');
   };
 
   changeController = async (_e: any, data: DropdownProps) => {
@@ -717,28 +510,8 @@ export default class App extends React.Component<AppProps, AppState> {
     return getMediaType(this.state.currentMedia) === 'video';
   };
 
-  isScreenShare = () => {
-    return this.state.currentMedia.startsWith('screenshare://');
-  };
-
-  isFileShare = () => {
-    return this.state.currentMedia.startsWith('fileshare://');
-  };
-
-  isVBrowser = () => {
-    return this.state.currentMedia.startsWith('vbrowser://');
-  };
-
   isHttp = () => {
     return this.state.currentMedia.startsWith('http');
-  };
-
-  getVBrowserPass = () => {
-    return this.state.currentMedia.replace('vbrowser://', '').split('@')[0];
-  };
-
-  getVBrowserHost = () => {
-    return this.state.currentMedia.replace('vbrowser://', '').split('@')[1];
   };
 
   getCurrentTime = () => {
@@ -758,6 +531,7 @@ export default class App extends React.Component<AppProps, AppState> {
       const leftVideo = document.getElementById(
         'leftVideo'
       ) as HTMLMediaElement;
+      if (!leftVideo) return 0;
       return leftVideo.duration;
     }
     if (this.isYouTube()) {
@@ -771,6 +545,7 @@ export default class App extends React.Component<AppProps, AppState> {
       const leftVideo = document.getElementById(
         'leftVideo'
       ) as HTMLMediaElement;
+      if (!leftVideo) return true;
       return leftVideo.paused || leftVideo.ended;
     }
     if (this.isYouTube()) {
@@ -789,6 +564,7 @@ export default class App extends React.Component<AppProps, AppState> {
       const leftVideo = document.getElementById(
         'leftVideo'
       ) as HTMLMediaElement;
+      //if (!leftVideo) return false;
       return leftVideo?.muted;
     }
     if (this.isYouTube()) {
@@ -802,6 +578,7 @@ export default class App extends React.Component<AppProps, AppState> {
       const leftVideo = document.getElementById(
         'leftVideo'
       ) as HTMLMediaElement;
+      if (!leftVideo) return false;
       return (
         leftVideo.textTracks[0] && leftVideo.textTracks[0].mode === 'showing'
       );
@@ -829,10 +606,6 @@ export default class App extends React.Component<AppProps, AppState> {
 
   doSrc = async (src: string, time: number) => {
     console.log('doSrc', src, time);
-    if (this.isScreenShare() || this.isFileShare() || this.isVBrowser()) {
-      // No-op as we'll set video when WebRTC completes
-      return;
-    }
     if (this.isVideo()) {
       const leftVideo = document.getElementById(
         'leftVideo'
@@ -1032,6 +805,7 @@ export default class App extends React.Component<AppProps, AppState> {
       const leftVideo = document.getElementById(
         'leftVideo'
       ) as HTMLMediaElement;
+      //if (!leftVideo) return 100;
       return leftVideo.volume;
     }
     if (this.isYouTube()) {
@@ -1163,17 +937,6 @@ export default class App extends React.Component<AppProps, AppState> {
     if (getMediaType(input) === 'youtube') {
       return input;
     }
-    if (input.startsWith('screenshare://')) {
-      let id = input.slice('screenshare://'.length);
-      return this.state.nameMap[id] + "'s screen";
-    }
-    if (input.startsWith('fileshare://')) {
-      let id = input.slice('fileshare://'.length);
-      return this.state.nameMap[id] + "'s file";
-    }
-    if (input.startsWith('vbrowser://')) {
-      return 'Virtual Browser' + (this.state.isVBrowserLarge ? '+' : '');
-    }
     if (input.includes('/stream?torrent=magnet')) {
       const search = new URL(input).search;
       const magnetUrl = querystring.parse(search.substring(1))
@@ -1266,15 +1029,16 @@ export default class App extends React.Component<AppProps, AppState> {
         <Input
           inverted
           fluid
-          label={'My name is:'}
+          label= {'(' + this.state.participants.length +')  My name is:'}
+          //{'My name is:'}
           value={this.state.myName}
           onChange={this.updateName}
           style={{ visibility: displayRightContent ? '' : 'hidden' }}
         />
-        {
+        {/*
           <Menu
             inverted
-            widths={3}
+            widths={1}
             style={{
               marginTop: '4px',
               marginBottom: '4px',
@@ -1283,24 +1047,15 @@ export default class App extends React.Component<AppProps, AppState> {
           >
             <Menu.Item
               name="chat"
-              active={this.state.currentTab === 'chat'}
-              onClick={() => this.setState({ currentTab: 'chat' })}
-              as="a"
+              active={true}
+              //as="a"
             >
-              {/* <Icon name="conversation" /> */}
+              <Icon name="conversation" />
               Chat
-            </Menu.Item>
-            <Menu.Item
-              name="people"
-              active={this.state.currentTab === 'people'}
-              onClick={() => this.setState({ currentTab: 'people' })}
-              as="a"
-            >
-              {/* <Icon name="group" /> */}
-              People ({this.state.participants.length})
+              ({this.state.participants.length})
             </Menu.Item>
           </Menu>
-        }
+          */}
         <Chat
           chat={this.state.chat}
           nameMap={this.state.nameMap}
@@ -1311,17 +1066,6 @@ export default class App extends React.Component<AppProps, AppState> {
           hide={this.state.currentTab !== 'chat' || !displayRightContent}
           isChatDisabled={this.state.isChatDisabled}
         />
-        {this.state.state === 'connected' && (
-          <VideoChat
-            socket={this.socket}
-            participants={this.state.participants}
-            nameMap={this.state.nameMap}
-            pictureMap={this.state.pictureMap}
-            tsMap={this.state.tsMap}
-            rosterUpdateTS={this.state.rosterUpdateTS}
-            hide={this.state.currentTab !== 'people' || !displayRightContent}
-          />
-        )}
       </Grid.Column>
     );
     return (
@@ -1437,7 +1181,7 @@ export default class App extends React.Component<AppProps, AppState> {
                         launchMultiSelect={this.launchMultiSelect}
                         disabled={!this.haveLock()}
                       />
-                    )}
+                      )}
                     {this.state.currentMedia && (
                       <Popup
                         content="Upload a .srt subtitle file for this video"
@@ -1478,15 +1222,6 @@ export default class App extends React.Component<AppProps, AppState> {
                             justifyContent: 'center',
                           }}
                         >
-                          {this.state.loading && (
-                            <Dimmer active>
-                              <Loader>
-                                {this.isVBrowser()
-                                  ? 'Launching virtual browser. This can take up to a minute.'
-                                  : ''}
-                              </Loader>
-                            </Dimmer>
-                          )}
                           {!this.state.loading && !this.state.currentMedia && (
                             <Message
                               color="yellow"
@@ -1521,6 +1256,16 @@ export default class App extends React.Component<AppProps, AppState> {
                         allow="autoplay"
                         src="https://www.youtube.com/embed/?enablejsapi=1&controls=0&rel=0"
                       />
+                      <video
+                          style={{
+                            display:
+                              this.isVideo() && !this.state.loading
+                                ? 'block'
+                                : 'none',
+                            width: '100%',
+                          }}
+                          id="leftVideo"
+                        ></video>
                       {this.state.fullScreen && this.state.currentMedia && (
                         <div className="controlsContainer">{controls}</div>
                       )}

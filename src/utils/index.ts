@@ -85,8 +85,9 @@ export function getColorForStringHex(id: string) {
   return colorMappings[getColorForString(id)];
 }
 
+ // `https://graph.facebook.com/${fbId}/picture?type=normal`;
 export const getFbPhoto = (fbId: string) =>
-  `https://graph.facebook.com/${fbId}/picture?type=normal`;
+  `http://placekitten.com/300/300`;
 
 export const getMediaType = (input: string) => {
   if (!input) {
@@ -171,7 +172,7 @@ export const getMediaPathForList = (list: string) => {
 };
 
 export const getDefaultPicture = (name: string, background = 'a0a0a0') => {
-  return `https://ui-avatars.com/api/?name=${name}&background=${background}&size=256&color=ffffff`;
+  return `https://placedog.net/256/256?id=${name}`
 };
 
 export const isMobile = () => {
@@ -253,15 +254,15 @@ export async function getStreamPathResults(
   return data;
 }
 
-export async function getYouTubeResults(
-  query: string
-): Promise<SearchResult[]> {
-  const response = await window.fetch(
-    serverPath + '/youtube?q=' + encodeURIComponent(query)
-  );
-  const data = await response.json();
-  return data;
-}
+// export async function getYouTubeResults(
+//   query: string
+// ): Promise<SearchResult[]> {
+//   const response = await window.fetch(
+//     serverPath + '/youtube?q=' + encodeURIComponent(query)
+//   );
+//   const data = await response.json();
+//   return data;
+// }
 
 export async function openFileSelector(accept?: string) {
   return new Promise<FileList | null>((resolve) => {

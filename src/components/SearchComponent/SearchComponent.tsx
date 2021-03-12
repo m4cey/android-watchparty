@@ -1,13 +1,13 @@
 import React from 'react';
 import {
   debounce,
-  getYouTubeResults,
+  //getYouTubeResults,
   getMediaPathResults,
   getStreamPathResults,
 } from '../../utils';
 import { DropdownProps, Dropdown } from 'semantic-ui-react';
 import {
-  YouTubeSearchResult,
+  //YouTubeSearchResult,
   MediaPathSearchResult,
   StreamPathSearchResult,
 } from '../SearchResult/SearchResult';
@@ -40,9 +40,9 @@ export class SearchComponent extends React.Component<SearchComponentProps> {
           let query = this.state.inputMedia || '';
           let results: SearchResult[] = [];
           let timestamp = Number(new Date());
-          if (this.props.type === 'youtube') {
+          /*if (this.props.type === 'youtube') {
             results = await getYouTubeResults(query);
-          } else if (this.props.type === 'media' && this.props.mediaPath) {
+          } else */ if (this.props.type === 'media' && this.props.mediaPath) {
             results = await getMediaPathResults(this.props.mediaPath, query);
           } else if (this.props.type === 'stream' && this.props.streamPath) {
             results = await getStreamPathResults(this.props.streamPath, query);
@@ -108,7 +108,7 @@ export class SearchComponent extends React.Component<SearchComponentProps> {
           {Boolean(this.state.results.length) ? (
             <Dropdown.Menu>
               {this.state.results.map((result: SearchResult) => {
-                if (this.props.type === 'youtube') {
+                /*if (this.props.type === 'youtube') {
                   return (
                     <YouTubeSearchResult
                       key={result.url}
@@ -116,7 +116,7 @@ export class SearchComponent extends React.Component<SearchComponentProps> {
                       setMedia={setMedia}
                     />
                   );
-                } else if (this.props.type === 'media') {
+                } else */ if (this.props.type === 'media') {
                   return (
                     <MediaPathSearchResult
                       key={result.url}

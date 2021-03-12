@@ -1,7 +1,8 @@
 import React from 'react';
 import { DropdownProps, Menu, Input, Icon } from 'semantic-ui-react';
-import { debounce, getYouTubeResults } from '../../utils';
-import { YouTubeSearchResult } from '../SearchResult/SearchResult';
+import { debounce } from '../../utils';
+//import { debounce, getYouTubeResults } from '../../utils';
+//import { YouTubeSearchResult } from '../SearchResult/SearchResult';
 
 interface ComboBoxProps {
   setMedia: Function;
@@ -39,16 +40,16 @@ export class ComboBox extends React.Component<ComboBoxProps> {
           const query: string = this.state.inputMedia || '';
           let timestamp = Number(new Date());
           let results: JSX.Element[] | undefined = undefined;
-          if (query !== '') {
-            const data = await getYouTubeResults(query);
-            results = data.map((result) => (
-              <YouTubeSearchResult
-                key={result.url}
-                {...result}
-                setMedia={this.setMedia}
-              />
-            ));
-          }
+          /* if (query !== '') { */
+          /*   const data = await getYouTubeResults(query); */
+          /*   results = data.map((result) => ( */
+          /*     <YouTubeSearchResult */
+          /*       key={result.url} */
+          /*       {...result} */
+          /*       setMedia={this.setMedia} */
+          /*     /> */
+          /*   )); */
+          /* } */
           if (timestamp > this.state.lastResultTimestamp) {
             this.setState({
               loading: false,
@@ -122,7 +123,7 @@ export class ComboBox extends React.Component<ComboBoxProps> {
             }
             loading={this.state.loading}
             label={'Now Watching:'}
-            placeholder="Enter video file URL, YouTube link, or YouTube search term"
+            placeholder="Enter video file URL or YouTube link"
             value={
               this.state.inputMedia !== undefined
                 ? this.state.inputMedia
