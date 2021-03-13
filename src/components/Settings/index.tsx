@@ -1,6 +1,6 @@
 export {
-  SettingsModal,
-  getCurrentSettings,
+  //SettingsModal,
+  //getCurrentSettings,
   getDefaultSettings,
   validateSettingsString,
 } from './LocalSettings';

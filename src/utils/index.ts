@@ -1,6 +1,7 @@
 //@ts-ignore
 import canAutoplay from 'can-autoplay';
 import { parseStringPromise } from 'xml2js';
+import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
 export function formatTimestamp(input: any) {
@@ -84,10 +85,6 @@ export function getColorForString(id: string) {
 export function getColorForStringHex(id: string) {
   return colorMappings[getColorForString(id)];
 }
-
- // `https://graph.facebook.com/${fbId}/picture?type=normal`;
-export const getFbPhoto = (fbId: string) =>
-  `http://placekitten.com/300/300`;
 
 export const getMediaType = (input: string) => {
   if (!input) {
@@ -199,12 +196,7 @@ export const iceServers = () => [
 ];
 
 export const serverPath =
-  process.env.REACT_APP_SERVER_HOST ||
-  `${window.location.protocol}//${
-    process.env.NODE_ENV === 'production'
-      ? window.location.host
-      : `${window.location.hostname}:8080`
-  }`;
+  process.env.REACT_APP_SERVER_HOST || 'https://gaeparty.herokuapp.com';
 
 export async function getMediaPathResults(
   mediaPath: string,
@@ -285,11 +277,7 @@ export async function openFileSelector(accept?: string) {
 }
 
 export function getAndSaveClientId() {
-  let clientId = window.localStorage.getItem('watchparty-clientid');
-  if (!clientId) {
-    // Generate a new clientID and save it
-    clientId = uuidv4();
-    window.localStorage.setItem('watchparty-clientid', clientId);
-  }
+  // Generate a new clientID and save it
+  clientId = uuidv4();
   return clientId;
 }

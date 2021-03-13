@@ -1,10 +1,10 @@
 import React from 'react';
-import { Button, Comment, Icon, Input } from 'semantic-ui-react';
+import { TextInput, StyleSheet, KeyboardAvoidingView, FlatList, View, StatusBar, ActivityIndicator, ScrollView } from 'react-native';
+import { Container, Text, List, ListItem, Left, Right, Body, Thumbnail, Input, Item } from 'native-base';
 
 import {
   formatTimestamp,
 } from '../../utils';
-import { Separator } from '../App/App';
 
 interface ChatProps {
   chat: ChatMessage[];
@@ -13,80 +13,33 @@ interface ChatProps {
   socket: SocketIOClient.Socket;
   scrollTimestamp: number;
   className?: string;
-  getMediaDisplayName: Function;
-  hide?: boolean;
-  isChatDisabled?: boolean;
+  //getMediaDisplayName: Function;
 }
 
 export class Chat extends React.Component<ChatProps> {
-  public state = { chatMsg: '', isNearBottom: true };
-  messagesRef = React.createRef<HTMLDivElement>();
+  public state = { chatMsg: '' };
 
-  componentDidMount() {
-    this.scrollToBottom();
-    this.messagesRef.current?.addEventListener('scroll', this.onScroll);
-  }
-
-  componentDidUpdate(prevProps: ChatProps) {
-    if (this.props.scrollTimestamp !== prevProps.scrollTimestamp) {
-      if (prevProps.scrollTimestamp === 0 || this.state.isNearBottom) {
-        this.scrollToBottom();
-      }
-    }
-    if (this.props.hide !== prevProps.hide) {
-      this.scrollToBottom();
-    }
-  }
-
-  updateChatMsg = (_e: any, data: { value: string }) => {
+  updateChatMsg = (value) => {
     // console.log(e.target.selectionStart);
-    this.setState({ chatMsg: data.value });
+    this.setState({ chatMsg: value });
   };
 
   sendChatMsg = () => {
     if (!this.state.chatMsg) {
       return;
     }
-    if (this.chatTooLong()) {
-      return;
-    }
     this.setState({ chatMsg: '' });
     this.props.socket.emit('CMD:chat', this.state.chatMsg);
-  };
-
-  chatTooLong = () => {
-    return Boolean(this.state.chatMsg?.length > 10000);
-  };
-
-  onScroll = () => {
-    this.setState({ isNearBottom: this.isChatNearBottom() });
-  };
-
-  isChatNearBottom = () => {
-    return (
-      this.messagesRef.current &&
-      this.messagesRef.current.scrollHeight -
-        this.messagesRef.current.scrollTop -
-        this.messagesRef.current.offsetHeight <
-        100
-    );
-  };
-
-  scrollToBottom = () => {
-    if (this.messagesRef.current) {
-      this.messagesRef.current.scrollTop = this.messagesRef.current.scrollHeight;
-    }
   };
 
   formatMessage = (cmd: string, msg: string): React.ReactNode | string => {
     if (cmd === 'host') {
       return (
-        <React.Fragment>
-          {`changed the video to `}
-          <span style={{ textTransform: 'initial' }}>
-            {this.props.getMediaDisplayName(msg)}
-          </span>
-        </React.Fragment>
+        <View>
+          <Text>
+          {`changed the video`}
+          </Text>
+        </View>
       );
     } else if (cmd === 'seek') {
       return `jumped to ${formatTimestamp(msg)}`;
@@ -103,71 +56,47 @@ export class Chat extends React.Component<ChatProps> {
   };
 
   render() {
+    //console.log(this.props.chat);
     return (
-      <div
-        className={this.props.className}
-        style={{
-          display: this.props.hide ? 'none' : 'flex',
-          flexDirection: 'column',
-          flexGrow: 1,
-          minHeight: 0,
-          marginTop: 0,
-          marginBottom: 0,
-          padding: '8px',
-        }}
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior='height'
+        keyboardVerticalOffset={-999}
       >
-        <div
-          className="chatContainer"
-          ref={this.messagesRef}
-          style={{ position: 'relative' }}
-        >
-          <Comment.Group>
-            {this.props.chat.map((msg) => (
+        <View style={styles.inner}>
+          <FlatList
+            ref={ref => this.flatList = ref}
+            onContentSizeChange={() => this.flatList.scrollToEnd()}
+            onLayout={() => this.flatList.scrollToEnd()}
+            style={styles.list}
+            data={this.props.chat}
+            keyExtractor={msg => msg.timestamp + msg.id}
+            ListEmptyComponent={(<Text>{'no messages found'}</Text>)}
+            renderItem={(msg) =>(
               <ChatMessage
-                key={msg.timestamp + msg.id}
+                key={msg.item.timestamp + msg.item.id}
                 message={msg}
                 pictureMap={this.props.pictureMap}
                 nameMap={this.props.nameMap}
                 formatMessage={this.formatMessage}
               />
-            ))}
-            {/* <div ref={this.messagesEndRef} /> */}
-          </Comment.Group>
-          {!this.state.isNearBottom && (
-            <Button
-              size="tiny"
-              onClick={this.scrollToBottom}
-              style={{
-                position: 'sticky',
-                bottom: 0,
-                display: 'block',
-                margin: '0 auto',
-              }}
-            >
-              Jump to bottom
-            </Button>
-          )}
-        </div>
-        <Separator />
-        <Input
-          inverted
-          fluid
-          onKeyPress={(e: any) => e.key === 'Enter' && this.sendChatMsg()}
-          onChange={this.updateChatMsg}
-          value={this.state.chatMsg}
-          error={this.chatTooLong()}
-          icon
-          disabled={this.props.isChatDisabled}
-          placeholder={
-            this.props.isChatDisabled
-              ? 'The chat was disabled by the room owner.'
-              : 'Enter a message...'
-          }
-        >
-          <input />
-          <Icon onClick={this.sendChatMsg} name="send" inverted circular link />
-        </Input>
-      </div>
+            )}
+          />
+          <TextInput
+            ref={ref => this.textInput = ref}
+            returnKeyType='send'
+            style={styles.textInput}
+            placeholder="url/chat:"
+            onSubmitEditing={(e)=>{
+              this.textInput.clear();
+              this.props.socket.emit('CMD:chat', e.nativeEvent.text);
+              //this.sendChatMsg()
+            }}
+            //onChangeText={this.updateChatMsg}
+            //value={this.state.chatMsg}
+          />
+        </View>
+      </KeyboardAvoidingView>
     );
   }
 }
@@ -181,29 +110,48 @@ const ChatMessage = ({
   message: ChatMessage;
   nameMap: StringDict;
   pictureMap: StringDict;
-  formatMessage: (cmd: string, msg: string) => React.ReactNode;
+  formatMessage: (cmd: string, msg: string) => View;
 }) => {
-  const { id, timestamp, cmd, msg, system } = message;
+  const { id, timestamp, cmd, msg, system } = message.item;
   return (
-    <Comment>
-      {id ? (
-        <Comment.Avatar
-          src={pictureMap[id]}
-        />
-      ) : null}
-      <Comment.Content>
-        <Comment.Author as="a" className="light">
-          {Boolean(system) && 'System'}
-          {nameMap[id] || id}
-        </Comment.Author>
-        <Comment.Metadata className="dark">
-          <div>{new Date(timestamp).toLocaleTimeString()}</div>
-        </Comment.Metadata>
-        <Comment.Text className="light system">
-          {cmd && formatMessage(cmd, msg)}
-        </Comment.Text>
-        <Comment.Text className="light">{!cmd && msg}</Comment.Text>
-      </Comment.Content>
-    </Comment>
+    <ListItem style={{borderColor:'#fff'}}>
+      <Left>
+        <Thumbnail circle small
+          source={{uri: pictureMap[id]}}/>
+        <Body style={{padding:0}}>
+          <Text note>
+            {Boolean(system) && 'System'}
+            {nameMap[id] || id}
+          </Text>
+          <Text style={{fontSize: 12}}>
+            {!cmd && msg}
+            {cmd && formatMessage(cmd, msg)}
+          </Text>
+        </Body>
+      </Left>
+      <Right>
+        <Text note>{new Date(timestamp).toLocaleTimeString()}</Text>
+      </Right>
+    </ListItem>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  inner: {
+    //padding: 0,
+    flex: 1,
+    justifyContent: "flex-end"
+  },
+  textInput: {
+    height: 40,
+    width: '100%',
+    fontSize: 14,
+    //flex:1,
+  },
+  list: {
+    //flexGrow: 1
+  },
+});
