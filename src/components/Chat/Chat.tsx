@@ -95,7 +95,8 @@ class ChatMessage extends React.Component {
   }
   shouldComponentUpdate(nprops) {
     const id = this.props.message.item.id;
-    return !(this.props.pictureMap[id] == nprops.pictureMap[id])
+    return (this.props.pictureMap[id] != nprops.pictureMap[id]) ||
+      (this.props.nameMap[id] != nprops.pictureMap[id])
   }
   render() {
     const { id, timestamp, cmd, msg, system } = this.props.message.item;
@@ -137,8 +138,9 @@ const styles = StyleSheet.create({
     height: 40,
     width: '100%',
     fontSize: 14,
-    borderTopWidth: 1,
     paddingLeft: 10,
+  },
+  list: {
   },
   card: {
     margin: 2,

@@ -4,7 +4,7 @@ import querystring from 'querystring';
 import axios from 'axios';
 import magnet from 'magnet-uri';
 import React from 'react';
-import { Container, StyleSheet, View } from 'react-native';
+import { Dimensions, Text, TextInput, StyleSheet, View, DrawerLayoutAndroid, Button} from 'react-native';
 import io from 'socket.io-client';
 //import VTTConverter from 'srt-webvtt';
 import {
@@ -45,7 +45,6 @@ interface AppState {
   nameMap: StringDict;
   pictureMap: StringDict;
   myName: string;
-  myPicture: string;
   loading: boolean;
   scrollTimestamp: number;
   controlsTimestamp: number;
@@ -82,7 +81,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     nameMap: {},
     pictureMap: {},
     myName: '',
-    myPicture: '',
     loading: true,
     scrollTimestamp: 0,
     controlsTimestamp: 0,
@@ -256,7 +254,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     this.socket = socket;
     socket.on('connect', async () => {
       this.setState({ state: 'connected' });
-      this.updateName(null, { value: 'undefined' });
+      this.updateName(null, { value: 'woof' });
       this.loadSignInData();
     });
     socket.on('error', (err: any) => {
@@ -791,7 +789,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
   };
 
   updatePicture = (url: string) => {
-    this.setState({ myPicture: url });
     this.socket.emit('CMD:picture', url);
   };
 
@@ -1122,18 +1119,42 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     {/* <View> */}
     {/*   {rightBar} */}
     {/* </View> */}
-    return (
-      <View style={styles.container}>
-        <View style={styles.video}></View>
-          <Chat
-            chat={this.state.chat}
-            nameMap={this.state.nameMap}
-            pictureMap={this.state.pictureMap}
-            socket={this.socket}
-            scrollTimestamp={this.state.scrollTimestamp}
-            //getMediaDisplayName={this.getMediaDisplayName}
-          />
+    const windowWidth = Dimensions.get('window').width;
+    let drawerRef;
+    const navigationView = () => (
+      <View style={styles.drawer}>
+        <View style={styles.column}>
+          <View style={{width:'100%'}}>
+            <Text> {'Display name:'} </Text>
+            <TextInput style={styles.input} placeholder={'woof'}
+              onSubmitEditing={(e)=>{drawerRef.closeDrawer(); this.updateName(null, {value: e.nativeEvent.text})}}
+            >
+            </TextInput>
+          </View>
+          <Button style={styles.button} title={'Random Doggo :3'}
+            onPress={()=>{drawerRef.closeDrawer(); this.updatePicture()}}
+          ></Button>
+        </View>
       </View>
+    );
+    return (
+      <DrawerLayoutAndroid
+        ref={ref => drawerRef = ref}
+        style={styles.container}
+        renderNavigationView={navigationView}
+        drawerWidth={windowWidth * 0.8}
+        keyboardDismissMode={'on-drag'}
+      >
+        <View style={styles.video}></View>
+        <Chat
+          chat={this.state.chat}
+          nameMap={this.state.nameMap}
+          pictureMap={this.state.pictureMap}
+          socket={this.socket}
+          scrollTimestamp={this.state.scrollTimestamp}
+          //getMediaDisplayName={this.getMediaDisplayName}
+        />
+      </DrawerLayoutAndroid>
     );
   }
 }
@@ -1141,10 +1162,35 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
   },
   video: {
     height: 200,
     backgroundColor: '#323',
-  }
+  },
+  drawer: {
+    width:'100%',
+    height:'100%',
+    flexDirection: 'row',
+    //justifyContent: 'center',
+    marginTop: 200,
+  },
+  column: {
+    height: '50%',
+    flex: 1,
+    alignItems: 'flex-start',
+    padding: 24,
+    justifyContent: 'space-around',
+  },
+  button: {
+    width:'60%',
+  },
+  input: {
+    width: '90%',
+    borderBottomWidth: 2,
+    borderColor: '#0ae',
+    shadowColor: 'black',
+    padding: 4,
+    paddingLeft: 8,
+    paddingRight: 8,
+  },
 });
