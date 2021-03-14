@@ -1,6 +1,5 @@
 import React from 'react';
-import { TextInput, StyleSheet, KeyboardAvoidingView, FlatList, View, StatusBar, ActivityIndicator, ScrollView } from 'react-native';
-import { Container, Text, List, ListItem, Left, Right, Body, Thumbnail, Input, Item } from 'native-base';
+import { Image, TextInput, StyleSheet, KeyboardAvoidingView, FlatList, View, ActivityIndicator, Text } from 'react-native';
 
 import {
   formatTimestamp,
@@ -17,20 +16,6 @@ interface ChatProps {
 }
 
 export class Chat extends React.Component<ChatProps> {
-  public state = { chatMsg: '' };
-
-  updateChatMsg = (value) => {
-    // console.log(e.target.selectionStart);
-    this.setState({ chatMsg: value });
-  };
-
-  sendChatMsg = () => {
-    if (!this.state.chatMsg) {
-      return;
-    }
-    this.setState({ chatMsg: '' });
-    this.props.socket.emit('CMD:chat', this.state.chatMsg);
-  };
 
   formatMessage = (cmd: string, msg: string): React.ReactNode | string => {
     if (cmd === 'host') {
@@ -57,6 +42,19 @@ export class Chat extends React.Component<ChatProps> {
 
   render() {
     //console.log(this.props.chat);
+    const renderItem = (msg) =>{
+      return(
+        <ChatMessage
+          key={msg.item.timestamp + msg.item.id}
+          message={msg}
+          pictureMap={this.props.pictureMap}
+          nameMap={this.props.nameMap}
+          formatMessage={this.formatMessage}
+        />);
+    };
+
+    const keyExtractor = (msg) => {return (msg.timestamp + msg.id)};
+
     return (
       <KeyboardAvoidingView
         style={styles.container}
@@ -70,17 +68,9 @@ export class Chat extends React.Component<ChatProps> {
             onLayout={() => this.flatList.scrollToEnd()}
             style={styles.list}
             data={this.props.chat}
-            keyExtractor={msg => msg.timestamp + msg.id}
-            ListEmptyComponent={(<Text>{'no messages found'}</Text>)}
-            renderItem={(msg) =>(
-              <ChatMessage
-                key={msg.item.timestamp + msg.item.id}
-                message={msg}
-                pictureMap={this.props.pictureMap}
-                nameMap={this.props.nameMap}
-                formatMessage={this.formatMessage}
-              />
-            )}
+            keyExtractor={keyExtractor}
+            ListEmptyComponent={(<Text>No messages..</Text>)}
+            renderItem={renderItem}
           />
           <TextInput
             ref={ref => this.textInput = ref}
@@ -90,10 +80,7 @@ export class Chat extends React.Component<ChatProps> {
             onSubmitEditing={(e)=>{
               this.textInput.clear();
               this.props.socket.emit('CMD:chat', e.nativeEvent.text);
-              //this.sendChatMsg()
             }}
-            //onChangeText={this.updateChatMsg}
-            //value={this.state.chatMsg}
           />
         </View>
       </KeyboardAvoidingView>
@@ -101,57 +88,79 @@ export class Chat extends React.Component<ChatProps> {
   }
 }
 
-const ChatMessage = ({
-  message,
-  nameMap,
-  pictureMap,
-  formatMessage,
-}: {
-  message: ChatMessage;
-  nameMap: StringDict;
-  pictureMap: StringDict;
-  formatMessage: (cmd: string, msg: string) => View;
-}) => {
-  const { id, timestamp, cmd, msg, system } = message.item;
-  return (
-    <ListItem style={{borderColor:'#fff'}}>
-      <Left>
-        <Thumbnail circle small
-          source={{uri: pictureMap[id]}}/>
-        <Body style={{padding:0}}>
-          <Text note>
+class ChatMessage extends React.Component {
+
+  constructor(props) {
+    super(props);
+  }
+  shouldComponentUpdate(nprops) {
+    const id = this.props.message.item.id;
+    return !(this.props.pictureMap[id] == nprops.pictureMap[id])
+  }
+  render() {
+    const { id, timestamp, cmd, msg, system } = this.props.message.item;
+    return (
+      <View style={styles.card}>
+        <Image style={styles.image}
+          source={{uri: this.props.pictureMap[id]}}/>
+        <View style={styles.content}>
+        <Text style={styles.head}>
+          <Text style={{fontWeight:'normal',fontSize:12, textAlign: 'right'}}>
+            {'('}
+            {new Date(timestamp).toLocaleTimeString()}
+            {')    '}
+          </Text>
+          <Text style={{fontStyle:'italic'}}>
             {Boolean(system) && 'System'}
-            {nameMap[id] || id}
+            {this.props.nameMap[id] || id}
           </Text>
-          <Text style={{fontSize: 12}}>
-            {!cmd && msg}
-            {cmd && formatMessage(cmd, msg)}
-          </Text>
-        </Body>
-      </Left>
-      <Right>
-        <Text note>{new Date(timestamp).toLocaleTimeString()}</Text>
-      </Right>
-    </ListItem>
-  );
-};
+        </Text>
+        <Text style={styles.message}>
+          {!cmd && msg}
+          {cmd && formatMessage(cmd, msg)}
+        </Text>
+        </View>
+      </View>
+    );
+  }
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    justifyContent: 'flex-end',
   },
   inner: {
-    //padding: 0,
-    flex: 1,
-    justifyContent: "flex-end"
+    flex: 1
   },
   textInput: {
     height: 40,
     width: '100%',
     fontSize: 14,
-    //flex:1,
+    borderTopWidth: 1,
+    paddingLeft: 10,
   },
-  list: {
-    //flexGrow: 1
+  card: {
+    margin: 2,
+    display: 'flex',
+    flexDirection: 'row',
   },
+  image: {
+    width: 40,
+    height: 40,
+    margin: 2,
+    borderRadius: 20,
+  },
+  content: {
+    flex:1,
+    paddingLeft: 4,
+  },
+  head: {
+    paddingTop: 0,
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  message: {
+    fontSize: 14,
+  }
 });

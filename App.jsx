@@ -1,6 +1,5 @@
 import React from 'react';
-import { TextInput, StyleSheet, KeyboardAvoidingView, FlatList, View, StatusBar, ActivityIndicator, ScrollView } from 'react-native';
-import { Container, Text, List, ListItem, Left, Right, Body, Thumbnail, Input, Item } from 'native-base';
+import { StyleSheet, View, StatusBar, ActivityIndicator } from 'react-native';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -31,20 +30,12 @@ export default class App extends React.Component {
     }
 
     return (
-      <Container>
+      <View style={{flex: 1}}>
         <StatusBar
           backgroundColor="#af0faa"
           barStyle='light-content'/>
-        <View style={styles.video}></View>
         <WatchParty/>
-      </Container>
+      </View>
     );
   }
 }
-
-const styles = StyleSheet.create({
-  video: {
-    height: 200,
-    backgroundColor: '#123',
-  }
-});

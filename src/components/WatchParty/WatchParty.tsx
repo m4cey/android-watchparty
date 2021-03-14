@@ -4,8 +4,7 @@ import querystring from 'querystring';
 import axios from 'axios';
 import magnet from 'magnet-uri';
 import React from 'react';
-import {} from 'native-base';
-import { View } from 'react-native';
+import { Container, StyleSheet, View } from 'react-native';
 import io from 'socket.io-client';
 //import VTTConverter from 'srt-webvtt';
 import {
@@ -67,7 +66,6 @@ interface AppState {
   roomId: string;
   errorMessage: string;
   successMessage: string;
-  isChatDisabled: boolean;
   showRightBar: boolean;
 }
 
@@ -105,8 +103,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     roomId: '',
     errorMessage: '',
     successMessage: '',
-    isChatDisabled: false,
-    showRightBar: true,
   };
   socket: SocketIOClient.Socket = null as any;
   watchPartyYTPlayer: any = null;
@@ -126,7 +122,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
 
     //const canAutoplay = await testAutoplay();
     //this.setState({ isAutoPlayable: canAutoplay });
-    //this.loadSettings();
+    this.loadSettings();
     //this.loadYouTube();
     this.init();
   }
@@ -134,6 +130,8 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
   componentWillUnmount() {
     clearInterval(this.heartbeat);
     clearInterval(this.currentTimeInterval);
+    console.log("DISCONNECTED");
+    this.socket.disconnect();
   }
 
   componentDidUpdate(prevProps: AppProps) {
@@ -160,11 +158,8 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
       if (firstName) {
         this.updateName(null, { value: firstName });
       }
-      if (user.photoURL) {
-        this.updatePicture(user.photoURL + '?height=128&width=128');
-      }
       this.updateUid(user);
-      //const token = await user.getIdToken();
+      const token = await user.getIdToken();
     }
   };
 
@@ -256,11 +251,12 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
         password,
         shard,
       },
+      'forceNew': true,
     });
     this.socket = socket;
     socket.on('connect', async () => {
       this.setState({ state: 'connected' });
-      this.updateName(null, { value: 'imgae' });
+      this.updateName(null, { value: 'undefined' });
       this.loadSignInData();
     });
     socket.on('error', (err: any) => {
@@ -400,7 +396,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
       this.setState({ participants: data, rosterUpdateTS: Number(new Date()) });
     });
     socket.on('chatinit', (data: any) => {
-      this.setState({ chat: data, scrollTimestamp: Number(new Date()) });
+      this.setState({ chat: data.slice(-10), scrollTimestamp: Number(new Date()) });
       console.log("------CHAT INIT-------");
       console.log(this.state.chat);
       console.log("----------------------");
@@ -862,7 +858,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     return this.props.user?.uid === this.state.roomLock;
   };
 
-  setChatDisabled = (val: boolean) => this.setState({ isChatDisabled: val });
 
   getLeaderTime = () => {
     return Math.max(...Object.values(this.state.tsMap));
@@ -1128,14 +1123,28 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     {/*   {rightBar} */}
     {/* </View> */}
     return (
-      <Chat
-        chat={this.state.chat}
-        nameMap={this.state.nameMap}
-        pictureMap={this.state.pictureMap}
-        socket={this.socket}
-        scrollTimestamp={this.state.scrollTimestamp}
-        //getMediaDisplayName={this.getMediaDisplayName}
-      />
+      <View style={styles.container}>
+        <View style={styles.video}></View>
+          <Chat
+            chat={this.state.chat}
+            nameMap={this.state.nameMap}
+            pictureMap={this.state.pictureMap}
+            socket={this.socket}
+            scrollTimestamp={this.state.scrollTimestamp}
+            //getMediaDisplayName={this.getMediaDisplayName}
+          />
+      </View>
     );
   }
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  video: {
+    height: 200,
+    backgroundColor: '#323',
+  }
+});
