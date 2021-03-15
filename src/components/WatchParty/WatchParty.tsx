@@ -4,7 +4,8 @@ import querystring from 'querystring';
 import axios from 'axios';
 import magnet from 'magnet-uri';
 import React from 'react';
-import { Dimensions, Text, TextInput, StyleSheet, View, DrawerLayoutAndroid, Button} from 'react-native';
+import { KeyboardAvoidingView, Dimensions, Text, TextInput, StyleSheet, View, DrawerLayoutAndroid, Button} from 'react-native';
+import { Video, AVPlaybackStatus } from 'expo-av';
 import io from 'socket.io-client';
 //import VTTConverter from 'srt-webvtt';
 import {
@@ -110,18 +111,23 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
   progressUpdater?: number;
   heartbeat: number | undefined = undefined;
   currentTimeInterval: number | undefined = undefined;
+  windowWidth = 0;
+  windowHeight = 0;
+  videoRef;
 
   async componentDidMount() {
 
     // Send heartbeat to the server
     this.heartbeat = setInterval(() => {
       fetch(serverPath + '/ping');
-    }, 10 * 60 * 1000);
+    }, 1 * 60 * 1000);
 
     //const canAutoplay = await testAutoplay();
     //this.setState({ isAutoPlayable: canAutoplay });
     this.loadSettings();
     //this.loadYouTube();
+    this.windowWidth = Dimensions.get('window').width;
+    this.windowHeight = Dimensions.get('window').height;
     this.init();
   }
 
@@ -276,7 +282,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
       }, 3000);
     });
     socket.on('successMessage', (success: string) => {
-      console.log('UR IN');
       this.setState({ successMessage: success });
       setTimeout(() => {
         this.setState({ successMessage: '' });
@@ -304,73 +309,66 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     socket.on('REC:changeController', (data: string) => {
       this.setState({ controller: data });
     });
-    /* socket.on('REC:host', async (data: HostState) => { */
-    /*   let currentMedia = data.video || ''; */
-    /*   this.setState( */
-    /*     { */
-    /*       currentMedia, */
-    /*       currentMediaPaused: data.paused, */
-    /*       currentSubtitle: Boolean(data.subtitle) */
-    /*         ? serverPath + '/subtitle/' + data.subtitle */
-    /*         : '', */
-    /*       loading: Boolean(data.video), */
-    /*       nonPlayableMedia: false, */
-    /*       controller: data.controller, */
-    /*     }, */
-    /*     () => { */
-    /*       // Stop all players */
-    /*       const leftVideo = document.getElementById( */
-    /*         'leftVideo' */
-    /*       ) as HTMLMediaElement; */
-    /*       leftVideo?.pause(); */
-    /*       this.watchPartyYTPlayer?.stopVideo(); */
+    socket.on('REC:host', async (data: HostState) => {
+      let currentMedia = data.video || '';
+      this.setState(
+        {
+          currentMedia,
+          currentMediaPaused: data.paused,
+          currentSubtitle: Boolean(data.subtitle)
+            ? serverPath + '/subtitle/' + data.subtitle
+            : '',
+          loading: Boolean(data.video),
+          nonPlayableMedia: false,
+          controller: data.controller,
+        },
+        () => {
+          // Stop all players
+          this.videoRef?.stopAsync();
+          this.watchPartyYTPlayer?.stopVideo();
 
-    /*       if (this.isYouTube() && !this.watchPartyYTPlayer) { */
-    /*         console.log( */
-    /*           'YT player not ready, onReady callback will retry when it is' */
-    /*         ); */
-    /*       } else { */
-    /*         // Start this video */
-    /*         this.doSrc(data.video, data.videoTS); */
-    /*         if (!data.paused) { */
-    /*           this.doPlay(); */
-    /*         } */
-    /*         if (data.subtitle) { */
-    /*           if (!this.isSubtitled()) { */
-    /*             this.toggleSubtitle(); */
-    /*           } */
-    /*         } */
-    /*         // One time, when we're ready to play */
-    /*         leftVideo?.addEventListener( */
-    /*           'canplay', */
-    /*           () => { */
-    /*             this.setLoadingFalse(); */
-    /*             this.jumpToLeader(); */
-    /*           }, */
-    /*           { once: true } */
-    /*         ); */
+          if (this.isYouTube() && !this.watchPartyYTPlayer) {
+            console.log(
+              'YT player not ready, onReady callback will retry when it is'
+            );
+          } else {
+            // Start this video
+            this.doSrc(data.video, data.videoTS);
+            if (!data.paused) {
+              this.doPlay();
+            }
+            if (data.subtitle) {
+              if (!this.isSubtitled()) {
+                this.toggleSubtitle();
+              }
+            }
+            // One time, when we're ready to play
+            if (this.videoRef.getStatusAsync().shouldPlay){
+              this.setLoadingFalse();
+              this.jumpToLeader();
+            }
 
-    /*         // Progress updater */
-    /*         window.clearInterval(this.progressUpdater); */
-    /*         this.setState({ downloaded: 0, total: 0, speed: 0 }); */
-    /*         if (currentMedia.includes('/stream?torrent=magnet')) { */
-    /*           this.progressUpdater = window.setInterval(async () => { */
-    /*             const response = await window.fetch( */
-    /*               currentMedia.replace('/stream', '/progress') */
-    /*             ); */
-    /*             const data = await response.json(); */
-    /*             this.setState({ */
-    /*               downloaded: data.downloaded, */
-    /*               total: data.total, */
-    /*               speed: data.speed, */
-    /*               connections: data.connections, */
-    /*             }); */
-    /*           }, 1000); */
-    /*         } */
-    /*       } */
-    /*     } */
-    /*   ); */
-    /* }); */
+            // Progress updater
+            clearInterval(this.progressUpdater);
+            this.setState({ downloaded: 0, total: 0, speed: 0 });
+            if (currentMedia.includes('/stream?torrent=magnet')) {
+              this.progressUpdater = setInterval(async () => {
+                const response = await fetch(
+                  currentMedia.replace('/stream', '/progress')
+                );
+                const data = await response.json();
+                this.setState({
+                  downloaded: data.downloaded,
+                  total: data.total,
+                  speed: data.speed,
+                  connections: data.connections,
+                });
+              }, 1000);
+            }
+          }
+        }
+      );
+    });
     socket.on('REC:chat', (data: ChatMessage) => {
       this.state.chat.push(data);
       this.setState({
@@ -395,9 +393,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     });
     socket.on('chatinit', (data: any) => {
       this.setState({ chat: data.slice(-10), scrollTimestamp: Number(new Date()) });
-      console.log("------CHAT INIT-------");
-      console.log(this.state.chat);
-      console.log("----------------------");
     });
     socket.on('signalSS', async (data: any) => {
       // Handle messages received from signaling server
@@ -407,17 +402,17 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
       const pc = (data.sharer
         ? this.screenSharePC
         : this.screenHostPC[from]) as RTCPeerConnection;
-        if (msg.ice !== undefined) {
-          pc.addIceCandidate(new RTCIceCandidate(msg.ice));
-        } else if (msg.sdp && msg.sdp.type === 'offer') {
-          // console.log('offer');
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          this.sendSignalSS(from, { sdp: pc.localDescription }, !data.sharer);
-        } else if (msg.sdp && msg.sdp.type === 'answer') {
-          pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-        }
+      if (msg.ice !== undefined) {
+        pc.addIceCandidate(new RTCIceCandidate(msg.ice));
+      } else if (msg.sdp && msg.sdp.type === 'offer') {
+        // console.log('offer');
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        this.sendSignalSS(from, { sdp: pc.localDescription }, !data.sharer);
+      } else if (msg.sdp && msg.sdp.type === 'answer') {
+        pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      }
     });
     this.currentTimeInterval = setInterval(() => {
       if (this.state.currentMedia) {
@@ -450,10 +445,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
 
   getCurrentTime = () => {
     if (this.isVideo()) {
-      const leftVideo = document.getElementById(
-        'leftVideo'
-      ) as HTMLMediaElement;
-      return leftVideo?.currentTime;
+      return this.videoRef?.getStatusAsync().positionMillis / 1000;
     }
     if (this.isYouTube()) {
       return this.watchPartyYTPlayer?.getCurrentTime();
@@ -462,11 +454,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
 
   getDuration = () => {
     if (this.isVideo()) {
-      const leftVideo = document.getElementById(
-        'leftVideo'
-      ) as HTMLMediaElement;
-      if (!leftVideo) return 0;
-      return leftVideo.duration;
+      return this.videoRef.getStatusAsync().durationMillis / 1000;
     }
     if (this.isYouTube()) {
       return this.watchPartyYTPlayer?.getDuration();
@@ -474,20 +462,19 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     return 0;
   };
 
-  isPaused = () => {
+  isPaused = async () => {
     if (this.isVideo()) {
-      const leftVideo = document.getElementById(
-        'leftVideo'
-      ) as HTMLMediaElement;
-      if (!leftVideo) return true;
-      return leftVideo.paused || leftVideo.ended;
+      if (!this.videoRef) return true;
+      var ret = true;
+      const playbackStatus = await this.videoRef.getStatusAsync();
+      return (!playbackStatus.isPlaying) || (playbackStatus.positionMillis == playbackStatus.durationMillis);
     }
     if (this.isYouTube()) {
       return (
         this.watchPartyYTPlayer?.getPlayerState() ===
-          window.YT?.PlayerState?.PAUSED ||
-          this.watchPartyYTPlayer?.getPlayerState() ===
-          window.YT?.PlayerState?.ENDED
+        window.YT?.PlayerState?.PAUSED ||
+        this.watchPartyYTPlayer?.getPlayerState() ===
+        window.YT?.PlayerState?.ENDED
       );
     }
     return false;
@@ -541,15 +528,9 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
   doSrc = async (src: string, time: number) => {
     console.log('doSrc', src, time);
     if (this.isVideo()) {
-      const leftVideo = document.getElementById(
-        'leftVideo'
-      ) as HTMLMediaElement;
-      if (leftVideo) {
-        leftVideo.srcObject = null;
-        leftVideo.src = src;
-        leftVideo.currentTime = time;
-        // Clear subtitles
-        leftVideo.innerHTML = '';
+      if (this.videoRef) {
+        this.videoRef.unloadAsync().then(
+        this.videoRef.loadAsync({uri: src}, {positionMillis: time * 1000, shouldPlay: true}));
       }
     }
     if (this.isYouTube()) {
@@ -568,16 +549,11 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
       { currentMediaPaused: false, isAutoPlayable: canAutoplay },
       async () => {
         if (this.isVideo()) {
-          const leftVideo = document.getElementById(
-            'leftVideo'
-          ) as HTMLMediaElement;
           try {
-            if (this.state.isAutoPlayable) {
-              this.setMute(false);
-            } else {
-              this.setMute(true);
-            }
-            await leftVideo?.play();
+            const playbackStatus = await this.videoRef.getStatusAsync();
+            if (playbackStatus.positionMillis == playbackStatus.durationMillis)
+              this.doSeek(0);
+            this.videoRef?.playAsync();
           } catch (e) {
             console.warn(e);
             if (e.name === 'NotSupportedError') {
@@ -596,10 +572,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
   doPause = () => {
     this.setState({ currentMediaPaused: true }, async () => {
       if (this.isVideo()) {
-        const leftVideo = document.getElementById(
-          'leftVideo'
-        ) as HTMLMediaElement;
-        leftVideo.pause();
+        this.videoRef.pauseAsync();
       }
       if (this.isYouTube()) {
         console.log('pause');
@@ -610,23 +583,18 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
 
   doSeek = (time: number) => {
     if (this.isVideo()) {
-      const leftVideo = document.getElementById(
-        'leftVideo'
-      ) as HTMLMediaElement;
-      leftVideo.currentTime = time;
+      this.videoRef.setPositionAsync(time * 1000);
     }
     if (this.isYouTube()) {
       this.watchPartyYTPlayer?.seekTo(time, true);
     }
   };
 
-  togglePlay = () => {
+  togglePlay = async () => {
     let shouldPlay = true;
     if (this.isVideo()) {
-      const leftVideo = document.getElementById(
-        'leftVideo'
-      ) as HTMLMediaElement;
-      shouldPlay = leftVideo.paused || leftVideo.ended;
+      const playbackStatus = this.videoRef.getStatusAsync();
+      shouldPlay = await this.isPaused();//!playbackStatus.shouldPlay;//leftVideo.paused || leftVideo.ended;
     } else if (this.isYouTube()) {
       shouldPlay =
         this.watchPartyYTPlayer?.getPlayerState() ===
@@ -655,53 +623,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     this.socket.emit('CMD:seek', target);
   };
 
-  toggleMute = () => {
-    this.setMute(!this.isMuted());
-  };
-
-  setMute = (muted: boolean) => {
-    if (this.isVideo()) {
-      const leftVideo = document.getElementById(
-        'leftVideo'
-      ) as HTMLMediaElement;
-      if (leftVideo) {
-        leftVideo.muted = muted;
-      }
-    }
-    if (this.isYouTube()) {
-      if (muted) {
-        this.watchPartyYTPlayer?.mute();
-      } else {
-        this.watchPartyYTPlayer?.unMute();
-      }
-    }
-  };
-
-  setVolume = (volume: number) => {
-    if (this.isVideo()) {
-      const leftVideo = document.getElementById(
-        'leftVideo'
-      ) as HTMLMediaElement;
-      leftVideo.volume = volume;
-    }
-    if (this.isYouTube()) {
-      this.watchPartyYTPlayer?.setVolume(volume * 100);
-    }
-  };
-
-  getVolume = () => {
-    if (this.isVideo()) {
-      const leftVideo = document.getElementById(
-        'leftVideo'
-      ) as HTMLMediaElement;
-      //if (!leftVideo) return 100;
-      return leftVideo.volume;
-    }
-    if (this.isYouTube()) {
-      const volume = this.watchPartyYTPlayer?.getVolume();
-      return volume / 100;
-    }
-  };
 
   /* loadSubtitles = async () => { */
   /*   const leftVideo = document.getElementById('leftVideo') as HTMLMediaElement; */
@@ -809,7 +730,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     if (input.includes('/stream?torrent=magnet')) {
       const search = new URL(input).search;
       const magnetUrl = querystring.parse(search.substring(1))
-      .torrent as string;
+        .torrent as string;
       const magnetParsed = magnet.decode(magnetUrl);
       return magnetParsed.name;
     }
@@ -859,6 +780,11 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
   getLeaderTime = () => {
     return Math.max(...Object.values(this.state.tsMap));
   };
+
+  playbackStatusUpdate = (playbackStatus) => {
+    if (playbackStatus.isPlaying && !this.state.currentMediaPaused)
+      this.doPlay();
+  };
   render() {
     //const sharer = this.state.participants.find((p) => p.isScreenShare);
     /* const controls = ( */
@@ -869,8 +795,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     /*     fullScreen={this.fullScreen} */
     /*     toggleMute={this.toggleMute} */
     /*     toggleSubtitle={this.toggleSubtitle} */
-    /*     setVolume={this.setVolume} */
-    /*     getVolume={this.getVolume} */
     /*     jumpToLeader={this.jumpToLeader} */
     /*     paused={this.isPaused()} */
     /*     muted={this.isMuted()} */
@@ -1119,40 +1043,62 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     {/* <View> */}
     {/*   {rightBar} */}
     {/* </View> */}
-    const windowWidth = Dimensions.get('window').width;
+
     let drawerRef;
     const navigationView = () => (
       <View style={styles.drawer}>
         <View style={styles.column}>
           <View style={{width:'100%'}}>
-            <Text> {'Display name:'} </Text>
+            <Text style={{color: '#ddd'}}> {'Display name:'} </Text>
             <TextInput style={styles.input} placeholder={'woof'}
-              onSubmitEditing={(e)=>{drawerRef.closeDrawer(); this.updateName(null, {value: e.nativeEvent.text})}}
+              placeholderTextColor={'#444'}
+              onSubmitEditing={(e)=>{
+                drawerRef.closeDrawer();
+                this.updateName(null, {value: e.nativeEvent.text})
+              }}
             >
             </TextInput>
           </View>
-          <Button style={styles.button} title={'Random Doggo :3'}
+          <Button
+            style={styles.button}
+            color={'#444'}
+            title={'Random Doggo :3'}
             onPress={()=>{drawerRef.closeDrawer(); this.updatePicture()}}
           ></Button>
+          <Text style={{color:'#ddd'}}>{this.state.participants.length + ' connected (◕‿◕)'}</Text>
         </View>
       </View>
     );
+
+    //console.log(this.windowWidth);
+    /* <View style={styles.video}></View> */
+    const aspectRatio = 16/9;
     return (
       <DrawerLayoutAndroid
         ref={ref => drawerRef = ref}
         style={styles.container}
+        drawerBackgroundColor={'rgba(10,10,10,0.8)'}
         renderNavigationView={navigationView}
-        drawerWidth={windowWidth * 0.8}
+        drawerWidth={this.windowWidth * 0.8}
         keyboardDismissMode={'on-drag'}
       >
-        <View style={styles.video}></View>
+        <Video
+          ref={ref => this.videoRef = ref}
+          style={{height: this.windowWidth/aspectRatio, backgroundColor:'black'}}
+          source={{
+            uri: ''//'http://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4',
+          }}
+          useNativeControls
+          resizeMode="cover"
+          isLooping
+          onPlaybackStatusUpdate={this.playbackStatusUpdate}
+        />
         <Chat
           chat={this.state.chat}
           nameMap={this.state.nameMap}
           pictureMap={this.state.pictureMap}
           socket={this.socket}
           scrollTimestamp={this.state.scrollTimestamp}
-          //getMediaDisplayName={this.getMediaDisplayName}
         />
       </DrawerLayoutAndroid>
     );
@@ -1162,17 +1108,18 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#111',
   },
   video: {
-    height: 200,
-    backgroundColor: '#323',
+    backgroundColor: '#000',
   },
   drawer: {
     width:'100%',
     height:'100%',
+    top: 0,
     flexDirection: 'row',
-    //justifyContent: 'center',
-    marginTop: 200,
+    justifyContent: 'center',
+    marginTop: 20,
   },
   column: {
     height: '50%',
@@ -1186,11 +1133,11 @@ const styles = StyleSheet.create({
   },
   input: {
     width: '90%',
-    borderBottomWidth: 2,
-    borderColor: '#0ae',
-    shadowColor: 'black',
+    //borderBottomWidth: 2,
+    borderColor: '#444',
     padding: 4,
     paddingLeft: 8,
     paddingRight: 8,
+    color: '#fff',
   },
 });

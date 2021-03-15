@@ -12,7 +12,6 @@ interface ChatProps {
   socket: SocketIOClient.Socket;
   scrollTimestamp: number;
   className?: string;
-  //getMediaDisplayName: Function;
 }
 
 export class Chat extends React.Component<ChatProps> {
@@ -21,7 +20,7 @@ export class Chat extends React.Component<ChatProps> {
     if (cmd === 'host') {
       return (
         <View>
-          <Text>
+          <Text style={{color:'#ddd'}}>
           {`changed the video`}
           </Text>
         </View>
@@ -69,14 +68,20 @@ export class Chat extends React.Component<ChatProps> {
             style={styles.list}
             data={this.props.chat}
             keyExtractor={keyExtractor}
-            ListEmptyComponent={(<Text>No messages..</Text>)}
+            ListEmptyComponent={(
+              <View style={{flex:1, flexDirection:'row', justifyContent:'center', padding: 20}}>
+                <Text style={{color:'#888', fontSize: 16}}>{'it\'s just us here.. <w<'}</Text>
+              </View>
+            )}
             renderItem={renderItem}
           />
           <TextInput
             ref={ref => this.textInput = ref}
             returnKeyType='send'
+            underlineColorAndroid={'#ddd'}
             style={styles.textInput}
             placeholder="url/chat:"
+            placeholderTextColor={'#ddd'}
             onSubmitEditing={(e)=>{
               this.textInput.clear();
               this.props.socket.emit('CMD:chat', e.nativeEvent.text);
@@ -95,8 +100,7 @@ class ChatMessage extends React.Component {
   }
   shouldComponentUpdate(nprops) {
     const id = this.props.message.item.id;
-    return (this.props.pictureMap[id] != nprops.pictureMap[id]) ||
-      (this.props.nameMap[id] != nprops.pictureMap[id])
+    return (this.props.pictureMap[id] != nprops.pictureMap[id]);
   }
   render() {
     const { id, timestamp, cmd, msg, system } = this.props.message.item;
@@ -106,7 +110,7 @@ class ChatMessage extends React.Component {
           source={{uri: this.props.pictureMap[id]}}/>
         <View style={styles.content}>
         <Text style={styles.head}>
-          <Text style={{fontWeight:'normal',fontSize:12, textAlign: 'right'}}>
+          <Text style={{fontWeight:'normal',fontSize:12, textAlign: 'right', color: '#ddd' }}>
             {'('}
             {new Date(timestamp).toLocaleTimeString()}
             {')    '}
@@ -116,10 +120,12 @@ class ChatMessage extends React.Component {
             {this.props.nameMap[id] || id}
           </Text>
         </Text>
-        <Text style={styles.message}>
-          {!cmd && msg}
-          {cmd && formatMessage(cmd, msg)}
-        </Text>
+          <Text style={styles.message}>
+            {!cmd && msg}
+            <Text style={{color:'#ddd'}}>
+              {cmd && this.props.formatMessage(cmd, msg)}
+            </Text>
+          </Text>
         </View>
       </View>
     );
@@ -139,6 +145,8 @@ const styles = StyleSheet.create({
     width: '100%',
     fontSize: 14,
     paddingLeft: 10,
+    color: '#fff',
+    //backgroundColor: '#0f0f0f',
   },
   list: {
   },
@@ -161,8 +169,10 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     fontSize: 15,
     fontWeight: 'bold',
+    color: '#fff',
   },
   message: {
     fontSize: 14,
+    color: '#fff',
   }
 });

@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "movie-nights-app",
-    "slug": "movie-nights-app",
+    "name": "gaepaarty",
+    "icon": "./public/favicon.png",
+    "slug": "gaepaarty",
     "version": "1.0.0",
     "orientation": "portrait",
     "splash": {
@@ -19,6 +20,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.hammer.gaeparty",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF"
       }
