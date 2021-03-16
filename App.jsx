@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, StatusBar, ActivityIndicator } from 'react-native';
 //import * as Font from 'expo-font';
-//import { Ionicons } from '@expo/vector-icons';
 
 import WatchParty from './src/components/WatchParty';
 

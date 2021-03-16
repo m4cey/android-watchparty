@@ -7,7 +7,6 @@ import React from 'react';
 import { KeyboardAvoidingView, Dimensions, Text, TextInput, StyleSheet, View, DrawerLayoutAndroid, Button} from 'react-native';
 import { Video, AVPlaybackStatus } from 'expo-av';
 import io from 'socket.io-client';
-//import VTTConverter from 'srt-webvtt';
 import {
   formatSpeed,
   getMediaType,
@@ -17,10 +16,7 @@ import {
 } from '../../utils';
 import { Chat } from '../Chat';
 import { getDefaultSettings } from '../Settings';
-//import { ComboBox } from '../ComboBox/ComboBox';
-//import { SearchComponent } from '../SearchComponent/SearchComponent';
-//import { Controls } from '../Controls/Controls';
-//import { ErrorModal } from '../Modal/ErrorModal';
+import { Controls } from '../Controls/Controls';
 
 declare global {
   interface Window {
@@ -52,9 +48,6 @@ interface AppState {
   watchOptions: SearchResult[];
   isYouTubeReady: boolean;
   isAutoPlayable: boolean;
-  downloaded: number;
-  total: number;
-  speed: number;
   connections: number;
   error: string;
   isErrorAuth: boolean;
@@ -62,12 +55,12 @@ interface AppState {
   nonPlayableMedia: boolean;
   currentTab: string;
   roomLock: string;
-  controller?: string;
   roomId: string;
   errorMessage: string;
   successMessage: string;
   showRightBar: boolean;
-}
+  pbStatus: Object;
+  }
 
 export default class WatchParty extends React.Component<AppProps, AppState> {
   state: AppState = {
@@ -88,9 +81,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     watchOptions: [],
     isYouTubeReady: false,
     isAutoPlayable: true,
-    downloaded: 0,
-    total: 0,
-    speed: 0,
     connections: 0,
     error: '',
     isErrorAuth: false,
@@ -98,10 +88,10 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     nonPlayableMedia: false,
     currentTab: 'chat',
     roomLock: '',
-    controller: '',
     roomId: '',
     errorMessage: '',
     successMessage: '',
+    pbStatus: {},
   };
   socket: SocketIOClient.Socket = null as any;
   watchPartyYTPlayer: any = null;
@@ -306,9 +296,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
         }
       );
     });
-    socket.on('REC:changeController', (data: string) => {
-      this.setState({ controller: data });
-    });
     socket.on('REC:host', async (data: HostState) => {
       let currentMedia = data.video || '';
       this.setState(
@@ -320,12 +307,11 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
             : '',
           loading: Boolean(data.video),
           nonPlayableMedia: false,
-          controller: data.controller,
         },
-        () => {
+        async () => {
           // Stop all players
-          this.videoRef?.stopAsync();
-          this.watchPartyYTPlayer?.stopVideo();
+          await this.videoRef?.unloadAsync();
+          await this.watchPartyYTPlayer?.stopVideo();
 
           if (this.isYouTube() && !this.watchPartyYTPlayer) {
             console.log(
@@ -335,6 +321,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
             // Start this video
             this.doSrc(data.video, data.videoTS);
             if (!data.paused) {
+              await this.videoRef.setStatusAsync({shouldPlay: true})
               this.doPlay();
             }
             if (data.subtitle) {
@@ -343,27 +330,9 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
               }
             }
             // One time, when we're ready to play
-            if (this.videoRef.getStatusAsync().shouldPlay){
+            if (this.state.pbStatus.shouldPlay){
               this.setLoadingFalse();
               this.jumpToLeader();
-            }
-
-            // Progress updater
-            clearInterval(this.progressUpdater);
-            this.setState({ downloaded: 0, total: 0, speed: 0 });
-            if (currentMedia.includes('/stream?torrent=magnet')) {
-              this.progressUpdater = setInterval(async () => {
-                const response = await fetch(
-                  currentMedia.replace('/stream', '/progress')
-                );
-                const data = await response.json();
-                this.setState({
-                  downloaded: data.downloaded,
-                  total: data.total,
-                  speed: data.speed,
-                  connections: data.connections,
-                });
-              }, 1000);
             }
           }
         }
@@ -372,7 +341,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     socket.on('REC:chat', (data: ChatMessage) => {
       this.state.chat.push(data);
       this.setState({
-        chat: this.state.chat,
+        chat: this.state.chat.slice(-15),
         scrollTimestamp: Number(new Date()),
       });
     });
@@ -392,43 +361,13 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
       this.setState({ participants: data, rosterUpdateTS: Number(new Date()) });
     });
     socket.on('chatinit', (data: any) => {
-      this.setState({ chat: data.slice(-10), scrollTimestamp: Number(new Date()) });
-    });
-    socket.on('signalSS', async (data: any) => {
-      // Handle messages received from signaling server
-      const msg = data.msg;
-      const from = data.from;
-      // Determine whether the message came from the sharer or the sharee
-      const pc = (data.sharer
-        ? this.screenSharePC
-        : this.screenHostPC[from]) as RTCPeerConnection;
-      if (msg.ice !== undefined) {
-        pc.addIceCandidate(new RTCIceCandidate(msg.ice));
-      } else if (msg.sdp && msg.sdp.type === 'offer') {
-        // console.log('offer');
-        await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        this.sendSignalSS(from, { sdp: pc.localDescription }, !data.sharer);
-      } else if (msg.sdp && msg.sdp.type === 'answer') {
-        pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-      }
+      this.setState({ chat: data.slice(-15), scrollTimestamp: Number(new Date()) });
     });
     this.currentTimeInterval = setInterval(() => {
       if (this.state.currentMedia) {
         this.socket.emit('CMD:ts', this.getCurrentTime());
       }
     }, 1000);
-  };
-
-  changeController = async (_e: any, data: DropdownProps) => {
-    // console.log(data);
-    this.socket.emit('CMD:changeController', data.value);
-  };
-
-  sendSignalSS = async (to: string, data: any, sharer?: boolean) => {
-    // console.log('sendSS', to, data);
-    this.socket.emit('signalSS', { to, msg: data, sharer });
   };
 
   isYouTube = () => {
@@ -445,7 +384,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
 
   getCurrentTime = () => {
     if (this.isVideo()) {
-      return this.videoRef?.getStatusAsync().positionMillis / 1000;
+      return Math.floor(this.state.pbStatus.positionMillis / 1000);
     }
     if (this.isYouTube()) {
       return this.watchPartyYTPlayer?.getCurrentTime();
@@ -454,7 +393,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
 
   getDuration = () => {
     if (this.isVideo()) {
-      return this.videoRef.getStatusAsync().durationMillis / 1000;
+      return Math.floor(this.state.pbStatus.durationMillis / 1000);
     }
     if (this.isYouTube()) {
       return this.watchPartyYTPlayer?.getDuration();
@@ -462,12 +401,10 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     return 0;
   };
 
-  isPaused = async () => {
+  isPaused = () => {
     if (this.isVideo()) {
       if (!this.videoRef) return true;
-      var ret = true;
-      const playbackStatus = await this.videoRef.getStatusAsync();
-      return (!playbackStatus.isPlaying) || (playbackStatus.positionMillis == playbackStatus.durationMillis);
+      return (!this.state.pbStatus.isPlaying) || (this.state.pbStatus.positionMillis == this.state.pbStatus.durationMillis);
     }
     if (this.isYouTube()) {
       return (
@@ -529,8 +466,12 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     console.log('doSrc', src, time);
     if (this.isVideo()) {
       if (this.videoRef) {
-        this.videoRef.unloadAsync().then(
-        this.videoRef.loadAsync({uri: src}, {positionMillis: time * 1000, shouldPlay: true}));
+        await this.videoRef.unloadAsync();
+        await this.videoRef.loadAsync({uri: src}, {
+          progressUpdateIntervalMillis: 1000,
+          positionMillis: time * 1000,
+          shouldPlay: false
+        });
       }
     }
     if (this.isYouTube()) {
@@ -550,8 +491,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
       async () => {
         if (this.isVideo()) {
           try {
-            const playbackStatus = await this.videoRef.getStatusAsync();
-            if (playbackStatus.positionMillis == playbackStatus.durationMillis)
+            if (this.state.pbStatus.positionMillis == this.state.pbStatus.durationMillis)
               this.doSeek(0);
             this.videoRef?.playAsync();
           } catch (e) {
@@ -582,6 +522,9 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
   };
 
   doSeek = (time: number) => {
+    this.setState({position: time});
+    if (this.isPaused())
+      this.videoRef.setStatusAsync({shouldPlay: false});
     if (this.isVideo()) {
       this.videoRef.setPositionAsync(time * 1000);
     }
@@ -590,11 +533,10 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     }
   };
 
-  togglePlay = async () => {
+  togglePlay = () => {
     let shouldPlay = true;
     if (this.isVideo()) {
-      const playbackStatus = this.videoRef.getStatusAsync();
-      shouldPlay = await this.isPaused();//!playbackStatus.shouldPlay;//leftVideo.paused || leftVideo.ended;
+      shouldPlay = this.isPaused();//!playbackStatus.shouldPlay;//leftVideo.paused || leftVideo.ended;
     } else if (this.isYouTube()) {
       shouldPlay =
         this.watchPartyYTPlayer?.getPlayerState() ===
@@ -610,77 +552,10 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     }
   };
 
-  onSeek = (e: any, time: number) => {
-    let target = time;
-    if (e) {
-      const rect = e.target.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const max = rect.width;
-      target = (x / max) * this.getDuration();
-    }
-    target = Math.max(target, 0);
-    this.doSeek(target);
-    this.socket.emit('CMD:seek', target);
+  onSeek = (time: number) => {
+    this.doSeek(time);
+    this.socket.emit('CMD:seek', time);
   };
-
-
-  /* loadSubtitles = async () => { */
-  /*   const leftVideo = document.getElementById('leftVideo') as HTMLMediaElement; */
-  /*   // Clear subtitles */
-  /*   leftVideo.innerHTML = ''; */
-  /*   let subtitleSrc = ''; */
-  /*   const src = this.state.currentMedia; */
-  /*   if (this.state.currentSubtitle) { */
-  /*     subtitleSrc = this.state.currentSubtitle; */
-  /*   } else if (src.includes('/stream?torrent=magnet')) { */
-  /*     subtitleSrc = src.replace('/stream', '/subtitles2'); */
-  /*   } else if (src.startsWith('http')) { */
-  /*     const subtitlePath = src.slice(0, src.lastIndexOf('/') + 1); */
-  /*     // Expect subtitle name to be file name + .srt */
-  /*     subtitleSrc = */
-  /*       subtitlePath + 'subtitles/' + this.getFileName(src) + '.srt'; */
-  /*   } */
-  /*   if (subtitleSrc) { */
-  /*     const response = await window.fetch(subtitleSrc); */
-  /*     const buffer = await response.arrayBuffer(); */
-  /*     //const vttConverter = new VTTConverter(new Blob([buffer])); */
-  /*     const url = await vttConverter.getURL(); */
-  /*     const track = document.createElement('track'); */
-  /*     track.kind = 'captions'; */
-  /*     track.label = 'English'; */
-  /*     track.srclang = 'en'; */
-  /*     track.src = url; */
-  /*     leftVideo.appendChild(track); */
-  /*     leftVideo.textTracks[0].mode = 'showing'; */
-  /*   } */
-  /* }; */
-
-  /* syncSubtitle = () => { */
-  /*   const sharer = this.state.participants.find((p) => p.isScreenShare); */
-  /*   if (!sharer || sharer.id === this.socket.id) { */
-  /*     return; */
-  /*   } */
-  /*   // When sharing, our timestamp doesn't match the subtitles so adjust them */
-  /*   // For each cue, subtract the videoTS of the sharer, then add our own */
-  /*   const leftVideo = document.getElementById('leftVideo') as HTMLMediaElement; */
-  /*   const track = leftVideo?.textTracks[0]; */
-  /*   let offset = leftVideo.currentTime - this.state.tsMap[sharer.id]; */
-  /*   if (track && track.cues && offset) { */
-  /*     for (let i = 0; i < track.cues.length; i++) { */
-  /*       let cue = track?.cues?.[i]; */
-  /*       if (!cue) { */
-  /*         continue; */
-  /*       } */
-  /*       // console.log(cue.text, offset, (cue as any).origStart, (cue as any).origEnd); */
-  /*       if (!(cue as any).origStart) { */
-  /*         (cue as any).origStart = cue.startTime; */
-  /*         (cue as any).origEnd = cue.endTime; */
-  /*       } */
-  /*       cue.startTime = (cue as any).origStart + offset; */
-  /*       cue.endTime = (cue as any).origEnd + offset; */
-  /*     } */
-  /*   } */
-  /* }; */
 
   toggleSubtitle = () => {
     if (this.isYouTube()) {
@@ -700,8 +575,8 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     }
   };
 
-  setMedia = (_e: any, data: DropdownProps) => {
-    this.socket.emit('CMD:host', data.value);
+  setMedia = (_e: any, data: string) => {
+    this.socket.emit('CMD:host', data);
   };
 
   updateName = (_e: any, data: { value: string }) => {
@@ -781,10 +656,6 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     return Math.max(...Object.values(this.state.tsMap));
   };
 
-  playbackStatusUpdate = (playbackStatus) => {
-    if (playbackStatus.isPlaying && !this.state.currentMediaPaused)
-      this.doPlay();
-  };
   render() {
     //const sharer = this.state.participants.find((p) => p.isScreenShare);
     /* const controls = ( */
@@ -1045,6 +916,7 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
     {/* </View> */}
 
     let drawerRef;
+    let chatRef;
     const navigationView = () => (
       <View style={styles.drawer}>
         <View style={styles.column}>
@@ -1054,51 +926,62 @@ export default class WatchParty extends React.Component<AppProps, AppState> {
               placeholderTextColor={'#444'}
               onSubmitEditing={(e)=>{
                 drawerRef.closeDrawer();
-                this.updateName(null, {value: e.nativeEvent.text})
+                this.updateName(null, {value: e.nativeEvent.text});
               }}
-            >
-            </TextInput>
+            ></TextInput>
           </View>
           <Button
             style={styles.button}
             color={'#444'}
             title={'Random Doggo :3'}
-            onPress={()=>{drawerRef.closeDrawer(); this.updatePicture()}}
+            onPress={()=>{ drawerRef.closeDrawer(); this.updatePicture()}}
           ></Button>
           <Text style={{color:'#ddd'}}>{this.state.participants.length + ' connected (◕‿◕)'}</Text>
         </View>
       </View>
     );
 
-    //console.log(this.windowWidth);
-    /* <View style={styles.video}></View> */
     const aspectRatio = 16/9;
     return (
       <DrawerLayoutAndroid
         ref={ref => drawerRef = ref}
         style={styles.container}
-        drawerBackgroundColor={'rgba(10,10,10,0.8)'}
+        drawerBackgroundColor={'#111'}
         renderNavigationView={navigationView}
         drawerWidth={this.windowWidth * 0.8}
         keyboardDismissMode={'on-drag'}
       >
-        <Video
-          ref={ref => this.videoRef = ref}
-          style={{height: this.windowWidth/aspectRatio, backgroundColor:'black'}}
-          source={{
-            uri: ''//'http://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4',
-          }}
-          useNativeControls
-          resizeMode="cover"
-          isLooping
-          onPlaybackStatusUpdate={this.playbackStatusUpdate}
-        />
+        <View
+          style={styles.videoContainer}>
+          <Video
+            ref={ref => this.videoRef = ref}
+            style={{height: this.windowWidth/aspectRatio, backgroundColor:'black'}}
+            source={{
+              uri: ''//'http://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4',
+            }}
+            resizeMode="cover"
+            onPlaybackStatusUpdate={pbStatus => this.setState({ pbStatus })}
+          />
+          <Controls
+            //key={this.state.controlsTimestamp}
+            style={styles.controls}
+            togglePlay={this.togglePlay}
+            onSeek={this.onSeek}
+            jumpToLeader={this.jumpToLeader}
+            paused={this.isPaused()}
+            currentTime={this.getCurrentTime()}
+            duration={this.getDuration()}
+            leaderTime={this.isHttp() ? this.getLeaderTime() : undefined}
+          />
+        </View>
         <Chat
+          ref={ref => chatRef = ref}
           chat={this.state.chat}
           nameMap={this.state.nameMap}
           pictureMap={this.state.pictureMap}
           socket={this.socket}
-          scrollTimestamp={this.state.scrollTimestamp}
+          scrollTs={this.state.scrollTimestamp}
+          setMedia={this.setMedia}
         />
       </DrawerLayoutAndroid>
     );
@@ -1110,8 +993,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#111',
   },
-  video: {
+  videoContainer: {
     backgroundColor: '#000',
+  },
+  controls: {
+    position: 'absolute',
   },
   drawer: {
     width:'100%',
@@ -1133,7 +1019,7 @@ const styles = StyleSheet.create({
   },
   input: {
     width: '90%',
-    //borderBottomWidth: 2,
+    borderBottomWidth: 2,
     borderColor: '#444',
     padding: 4,
     paddingLeft: 8,

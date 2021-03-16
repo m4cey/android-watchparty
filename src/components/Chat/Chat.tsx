@@ -10,11 +10,20 @@ interface ChatProps {
   nameMap: StringDict;
   pictureMap: StringDict;
   socket: SocketIOClient.Socket;
-  scrollTimestamp: number;
-  className?: string;
+  scrollTs: number;
+  setMedia: Function;
 }
 
 export class Chat extends React.Component<ChatProps> {
+
+  constructor(props){
+    super(props);
+
+    this.viewabilityConfig = {
+      waitForInteraction: false,
+      viewAreaCoveragePercentThreshold: 10,
+    }
+  }
 
   formatMessage = (cmd: string, msg: string): React.ReactNode | string => {
     if (cmd === 'host') {
@@ -39,21 +48,27 @@ export class Chat extends React.Component<ChatProps> {
     return cmd;
   };
 
+  shouldComponentUpdate(nprops){
+    return this.props.scrollTs != nprops.scrollTs;
+  };
+
   render() {
-    //console.log(this.props.chat);
-    const renderItem = (msg) =>{
+    const renderItem = ({item : msg}) =>{
       return(
         <ChatMessage
-          key={msg.item.timestamp + msg.item.id}
+          key={msg.timestamp + msg.id}
           message={msg}
-          pictureMap={this.props.pictureMap}
-          nameMap={this.props.nameMap}
+          picture={this.props.pictureMap[msg.id]}
+          name={this.props.nameMap[msg.id]}
           formatMessage={this.formatMessage}
         />);
     };
 
-    const keyExtractor = (msg) => {return (msg.timestamp + msg.id)};
+    const keyExtractor = (msg) => {return (msg.timestamp + msg.id + Math.random())};
 
+    const onViewableItemsChanged = (info) => {console.log(info)};
+
+    console.log("RENDER");
     return (
       <KeyboardAvoidingView
         style={styles.container}
@@ -74,6 +89,9 @@ export class Chat extends React.Component<ChatProps> {
               </View>
             )}
             renderItem={renderItem}
+            //viewabilityConfig={this.props.viewabilityConfig}
+            //onViewableItemsChanged={onViewableItemsChanged}
+            extraData={this.props.scrollTs}
           />
           <TextInput
             ref={ref => this.textInput = ref}
@@ -83,8 +101,12 @@ export class Chat extends React.Component<ChatProps> {
             placeholder="url/chat:"
             placeholderTextColor={'#ddd'}
             onSubmitEditing={(e)=>{
+              const value = e.nativeEvent.text;
+              if (value.startsWith('http'))
+                this.props.setMedia(null, value);
+              else
+                this.props.socket.emit('CMD:chat', value);
               this.textInput.clear();
-              this.props.socket.emit('CMD:chat', e.nativeEvent.text);
             }}
           />
         </View>
@@ -99,15 +121,16 @@ class ChatMessage extends React.Component {
     super(props);
   }
   shouldComponentUpdate(nprops) {
+    return 0;
     const id = this.props.message.item.id;
-    return (this.props.pictureMap[id] != nprops.pictureMap[id]);
+    return (this.props.picture != nprops.picture);
   }
   render() {
-    const { id, timestamp, cmd, msg, system } = this.props.message.item;
+    const { id, timestamp, cmd, msg, system } = this.props.message;
     return (
       <View style={styles.card}>
         <Image style={styles.image}
-          source={{uri: this.props.pictureMap[id]}}/>
+          source={{uri: this.props.picture}}/>
         <View style={styles.content}>
         <Text style={styles.head}>
           <Text style={{fontWeight:'normal',fontSize:12, textAlign: 'right', color: '#ddd' }}>
@@ -117,12 +140,12 @@ class ChatMessage extends React.Component {
           </Text>
           <Text style={{fontStyle:'italic'}}>
             {Boolean(system) && 'System'}
-            {this.props.nameMap[id] || id}
+            {this.props.name || id}
           </Text>
         </Text>
           <Text style={styles.message}>
             {!cmd && msg}
-            <Text style={{color:'#ddd'}}>
+            <Text style={{color:'#ccc'}}>
               {cmd && this.props.formatMessage(cmd, msg)}
             </Text>
           </Text>
